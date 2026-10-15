@@ -4,8 +4,15 @@ import re
 
 _UNITS = ["", "ɗaya", "biyu", "uku", "huɗu", "biyar", "shida", "bakwai", "takwas", "tara"]
 _TENS = {
-    1: "goma", 2: "ashirin", 3: "talatin", 4: "arba'in", 5: "hamsin",
-    6: "sittin", 7: "saba'in", 8: "tamanin", 9: "casa'in",
+    1: "goma",
+    2: "ashirin",
+    3: "talatin",
+    4: "arba'in",
+    5: "hamsin",
+    6: "sittin",
+    7: "saba'in",
+    8: "tamanin",
+    9: "casa'in",
 }
 
 

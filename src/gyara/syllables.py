@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 _WORD_CHARS = r"\wƁƊƘƳɓɗƙƴ'’ʼ"
 _CLEAN_RE = re.compile(rf"[^{_WORD_CHARS}]")
@@ -23,9 +23,9 @@ class Syllable:
         return self.weight == "heavy"
 
 
-def _tokenize(word: str):
+def _tokenize(word: str) -> List[Tuple[str, str]]:
     low = word.lower()
-    tokens = []  # (text, kind) kind in {"C", "VL", "VS"}
+    tokens: List[Tuple[str, str]] = []  # (text, kind) kind in {"C", "VL", "VS"}
     i = 0
     while i < len(low):
         for pattern, kind in (
@@ -36,7 +36,7 @@ def _tokenize(word: str):
         ):
             m = pattern.match(low, i)
             if m:
-                tokens.append((word[i:m.end()], kind))
+                tokens.append((word[i : m.end()], kind))
                 i = m.end()
                 break
         else:  # unknown symbol: treat as a consonant so nothing is dropped

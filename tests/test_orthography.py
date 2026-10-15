@@ -1,18 +1,21 @@
 import pytest
 
-from shakara import normalize, normalize_digits
+from gyara import normalize, normalize_digits
 
 
-@pytest.mark.parametrize("raw,expected", [
-    ("doki", "doki"),
-    ("b'aki", "ɓaki"),
-    ("d'an", "ɗan"),
-    ("k'asa", "ƙasa"),
-    ("y'anci", "ƴanci"),
-    ("'yanci", "ƴanci"),
-    ("gab'a", "gaɓa"),          # mid-word
-    ("ts'", "ts"),
-])
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("doki", "doki"),
+        ("b'aki", "ɓaki"),
+        ("d'an", "ɗan"),
+        ("k'asa", "ƙasa"),
+        ("y'anci", "ƴanci"),
+        ("'yanci", "ƴanci"),
+        ("gab'a", "gaɓa"),  # mid-word
+        ("ts'", "ts"),
+    ],
+)
 def test_lowercase(raw, expected):
     assert normalize(raw) == expected
 

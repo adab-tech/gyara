@@ -1,7 +1,7 @@
 import json
 
-from shakara import audit_text, dataset_stats
-from shakara.cli import main
+from gyara import audit_text, dataset_stats
+from gyara.cli import main
 
 
 def test_audit_clean():

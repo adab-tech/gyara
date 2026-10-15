@@ -1,14 +1,15 @@
-"""`shakara` command line interface."""
+"""`gyara` command line interface."""
 
 import argparse
 import json
 import sys
-from typing import Iterable, List, Optional
+from typing import Any, Callable, List, Optional
 
 from . import __version__
 from .audit import audit_text, dataset_stats
 from .numbers import spell_out_numbers
 from .orthography import normalize
+from .speech import prepare_for_speech
 from .syllables import syllabify
 from .tone import annotate_tones
 
@@ -20,33 +21,40 @@ def _read(path: Optional[str]) -> str:
         return fh.read()
 
 
-def _emit(obj) -> None:
+def _emit(obj: Any) -> None:
     print(json.dumps(obj, ensure_ascii=False, indent=2))
 
 
-def _cmd_fix(a) -> int:
+def _cmd_fix(a: argparse.Namespace) -> int:
     sys.stdout.write(normalize(_read(a.file), digits=not a.keep_digits))
     return 0
 
 
-def _cmd_spell(a) -> int:
+def _cmd_spell(a: argparse.Namespace) -> int:
     sys.stdout.write(spell_out_numbers(normalize(_read(a.file))))
     return 0
 
 
-def _cmd_syllables(a) -> int:
-    for word in a.words:
-        parts = syllabify(normalize(word))
-        print(f"{word}\t" + "-".join(s.text for s in parts) + "\t" + " ".join(s.weight for s in parts))
+def _cmd_speech(a: argparse.Namespace) -> int:
+    sys.stdout.write(prepare_for_speech(_read(a.file), strip_glosses=not a.keep_glosses))
     return 0
 
 
-def _cmd_tone(a) -> int:
+def _cmd_syllables(a: argparse.Namespace) -> int:
+    for word in a.words:
+        parts = syllabify(normalize(word))
+        print(
+            f"{word}\t" + "-".join(s.text for s in parts) + "\t" + " ".join(s.weight for s in parts)
+        )
+    return 0
+
+
+def _cmd_tone(a: argparse.Namespace) -> int:
     sys.stdout.write(annotate_tones(normalize(_read(a.file)), guess=a.guess))
     return 0
 
 
-def _cmd_audit(a) -> int:
+def _cmd_audit(a: argparse.Namespace) -> int:
     report = audit_text(_read(a.file))
     if a.json:
         _emit(report.to_dict())
@@ -54,11 +62,11 @@ def _cmd_audit(a) -> int:
         print(f"words: {report.words}   hooked letters: {report.hooked_letters}")
         for issue in report.issues:
             print(f"- {issue}")
-        print("OK" if report.ok else "FAIL (run `shakara fix` to repair)")
+        print("OK" if report.ok else "FAIL (run `gyara fix` to repair)")
     return 0 if report.ok else 1
 
 
-def _cmd_stats(a) -> int:
+def _cmd_stats(a: argparse.Namespace) -> int:
     stats = dataset_stats(_read(a.file).splitlines())
     if a.json:
         _emit(stats)
@@ -69,11 +77,16 @@ def _cmd_stats(a) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="shakara", description="Hausa text toolkit.")
-    p.add_argument("--version", action="version", version=f"shakara {__version__}")
+    p = argparse.ArgumentParser(prog="gyara", description="Hausa text toolkit.")
+    p.add_argument("--version", action="version", version=f"gyara {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    def add(name, fn, help_, file_arg=True):
+    def add(
+        name: str,
+        fn: Callable[[argparse.Namespace], int],
+        help_: str,
+        file_arg: bool = True,
+    ) -> argparse.ArgumentParser:
         s = sub.add_parser(name, help=help_)
         if file_arg:
             s.add_argument("file", nargs="?", help="input file (default: stdin)")
@@ -81,16 +94,23 @@ def build_parser() -> argparse.ArgumentParser:
         return s
 
     add("fix", _cmd_fix, "restore ɓ ɗ ƙ ƴ from apostrophe spellings").add_argument(
-        "--keep-digits", action="store_true", help="do not fold Arabic-Indic digits to 0-9")
+        "--keep-digits", action="store_true", help="do not fold Arabic-Indic digits to 0-9"
+    )
     add("spell", _cmd_spell, "spell digits as Hausa words (for speech)")
+    add("speech", _cmd_speech, "prepare text for a TTS voice").add_argument(
+        "--keep-glosses", action="store_true", help="keep (English) glosses in the spoken text"
+    )
     s = add("syllables", _cmd_syllables, "syllabify words with weights", file_arg=False)
     s.add_argument("words", nargs="+")
     add("tone", _cmd_tone, "heuristic tone marks").add_argument(
-        "--guess", action="store_true", help="also mark unknown words (low confidence)")
+        "--guess", action="store_true", help="also mark unknown words (low confidence)"
+    )
     add("audit", _cmd_audit, "check text; exit 1 if problems found").add_argument(
-        "--json", action="store_true")
+        "--json", action="store_true"
+    )
     add("stats", _cmd_stats, "corpus statistics (one sentence per line)").add_argument(
-        "--json", action="store_true")
+        "--json", action="store_true"
+    )
     return p
 
 
@@ -99,7 +119,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    return int(args.func(args))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 
 import re
 from dataclasses import asdict, dataclass, field
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 from .orthography import (
     _FOREIGN_DIGIT_RE,
@@ -30,14 +30,14 @@ class AuditReport:
     def ok(self) -> bool:
         return not self.issues
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
         d["ok"] = self.ok
         return d
 
 
 def audit_text(text: str) -> AuditReport:
-    """Check `text` for orthography problems `shakara fix` can repair."""
+    """Check `text` for orthography problems `gyara fix` can repair."""
     ascii_hooks = count_ascii_hook_candidates(text)
     foreign = len(_FOREIGN_DIGIT_RE.findall(text))
     issues = []
@@ -55,7 +55,7 @@ def audit_text(text: str) -> AuditReport:
     )
 
 
-def dataset_stats(lines: Iterable[str]) -> Dict:
+def dataset_stats(lines: Iterable[str]) -> Dict[str, Any]:
     """Summary statistics for a corpus with one sentence per line."""
     total = empty = with_digits = ascii_hooks = hooked = 0
     lengths: List[int] = []

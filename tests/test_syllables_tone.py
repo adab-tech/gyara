@@ -1,6 +1,6 @@
 import pytest
 
-from shakara import annotate_tones, syllabify
+from gyara import annotate_tones, syllabify
 
 
 def texts(word):
@@ -19,14 +19,17 @@ def test_empty_and_punctuation():
     assert texts("sannu,") == ["san", "nu"]
 
 
-@pytest.mark.parametrize("word,expected", [
-    ("kwanduna", "kwándùnà"),
-    ("motoci", "mótòcí"),
-    ("yatsotsi", "yátsòtsí"),
-    ("gidaye", "gìdáyè"),
-    ("dawakai", "dàwákái"),
-    ("litattafai", "lìtàttáfái"),
-])
+@pytest.mark.parametrize(
+    "word,expected",
+    [
+        ("kwanduna", "kwándùnà"),
+        ("motoci", "mótòcí"),
+        ("yatsotsi", "yátsòtsí"),
+        ("gidaye", "gìdáyè"),
+        ("dawakai", "dàwákái"),
+        ("litattafai", "lìtàttáfái"),
+    ],
+)
 def test_plural_rules(word, expected):
     assert annotate_tones(word) == expected
 
