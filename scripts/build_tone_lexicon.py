@@ -1,45 +1,70 @@
-"""Build a tone-marked Hausa lexicon from the Wiktionary (Kaikki) extract.
+"""Build a tone-marked Hausa lexicon from Newman (1977) and Wiktionary, Newman first.
 
     python scripts/build_tone_lexicon.py \
+        --newman path/to/ha_en_pairs_merged.jsonl \
         --wiktionary path/to/kaikki-Hausa.jsonl \
-        [--newman path/to/ha_en_pairs_merged.jsonl]   # validation only, never written to the output
+        [--corpus path/to/articles.jsonl]            # Hausa text, for frequency-weighted review samples
         --out-dir build/tone
 
+Source policy (set by the project owner): Newman's tone marks are the authority. Where both
+sources have a word, Newman's pattern is used and Wiktionary's differing pattern is kept only as
+`alt_wiktionary`. A word found only in Wiktionary is kept but labelled `wiktionary_only` (lower
+confidence: it agrees with Newman on only about two thirds of shared words).
+
+Confidence tiers on every record:
+    both             Newman and Wiktionary give the same pattern
+    newman           Newman only, or Newman chosen over a differing Wiktionary pattern
+    newman_bare      a Newman headword with NO tone mark, read as all-high (unmarked = high).
+                     This holds for core words (wani H-H, shi H, yi H, sun H, kuma H-H) but is not
+                     yet confirmed for loanwords, so it stays out of the trusted runtime mapping
+    wiktionary_only  the word is not in Newman at all
+
 Outputs (in --out-dir):
-    lexicon.jsonl        one line per (word, tone pattern), Wiktionary only
-    report.json          counts, ambiguity, agreement with other sources
-    review.md/.csv       a stratified sample for a native speaker to check (--sample N)
+    lexicon.jsonl             merged records, one per (word, form kind, tone pattern, sense)
+    lexicon-newman.jsonl      only the records that come from Newman
+    lexicon-wiktionary.jsonl  only the records that come from Wiktionary
+    runtime-trusted.json      word -> melody for unambiguous words in the `both` and `newman` tiers
+    runtime-with-bare.json    the same plus `newman_bare` (inferred all-high) words
+    runtime-all.json          the same plus `wiktionary_only` words
+    report.json               counts per tier, agreement, coverage of the corpus
+    review.md / review.csv    a frequency-weighted sample for a native speaker (--sample N)
 
-Notation (Wiktionary / Newman style, assumed -- see the review sheet):
-    grave     L  low tone
-    circumflex F  falling tone (HL on one syllable)
-    acute     H  high tone (almost never written)
-    no mark   H  high tone (inferred: high is the unmarked tone)
-    macron    vowel LENGTH only; does not change the tone
-    tilde on r (r̃), cedilla, dot-below, breve: consonant/vowel-quality marks, ignored
+Notation (the same in both sources):
+    grave L low, circumflex F falling, acute H high (rare), NO mark = high.
+    Wiktionary also uses a macron for vowel LENGTH only. A tilde on r (r̃), cedilla, dot-below and
+    breve are consonant/vowel-quality marks and are ignored.
+A Newman headword with no tone mark at all is read as all-high, in its own tier (see above).
+Caution: where Wiktionary also marks such a word it is all-high only 38% of the time, so either
+the convention does not hold for every entry or Murya's page-image transcription dropped marks.
 
-Wiktionary text is CC-BY-SA 4.0: any lexicon built from it carries that licence and needs
-attribution to Wiktionary contributors (see ATTRIBUTION in the output folder).
+Wiktionary is CC-BY-SA 4.0 (credit Wiktionary contributors); Newman & Newman (1977) is used with
+the permission of Prof. Paul Newman as reported by the project owner. Settle the licence of any
+published data before release; the per-source output files exist so the two can be separated.
 """
 
 import argparse
 import csv
 import json
 import random
+import re
 import sys
 import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from gyara.syllables import syllabify
 from gyara.tone import LEXICON as GYARA_LEXICON
 
-GRAVE, ACUTE, CIRCUMFLEX, MACRON = "\u0300", "\u0301", "\u0302", "\u0304"
+GRAVE, ACUTE, CIRCUMFLEX, MACRON = "̀", "́", "̂", "̄"
 TONE_MARKS = {GRAVE: "L", ACUTE: "H", CIRCUMFLEX: "F"}
 VOWELS = "aeiouAEIOU"
 # Letters a Latin-script Hausa word may contain (hooked letters included).
 LATIN_OK = set("abcdefghijklmnopqrstuvwxyz'’ʼɓɗƙƴ")
+
+NEWMAN, WIKTIONARY = "newman_1977", "wiktionary_ha_ccbysa"
+TRUSTED_TIERS = ("both", "newman")
+BARE_TIERS = TRUSTED_TIERS + ("newman_bare",)
 
 
 def nfc(s: str) -> str:
@@ -100,6 +125,11 @@ def parse_marked(form: str) -> Optional[Tuple[List[str], bool]]:
     return tones, transcribed
 
 
+def load_jsonl(path: Path) -> List[dict]:
+    with path.open(encoding="utf-8") as fh:
+        return [json.loads(line) for line in fh if line.strip()]
+
+
 def first_gloss(entry: dict) -> str:
     for sense in entry.get("senses") or []:
         for g in sense.get("glosses") or []:
@@ -107,13 +137,11 @@ def first_gloss(entry: dict) -> str:
     return ""
 
 
-def load_jsonl(path: Path) -> List[dict]:
-    with path.open(encoding="utf-8") as fh:
-        return [json.loads(line) for line in fh if line.strip()]
-
-
+# ---------------------------------------------------------------------------------------------
+# Wiktionary
+# ---------------------------------------------------------------------------------------------
 def build_from_wiktionary(entries: Iterable[dict]) -> Tuple[List[dict], Counter]:
-    """One record per (word, form kind, tone pattern)."""
+    """One record per (word, form kind, tone pattern, gloss)."""
     stats: Counter = Counter()
     seen = set()
     out: List[dict] = []
@@ -154,120 +182,248 @@ def build_from_wiktionary(entries: Iterable[dict]) -> Tuple[List[dict], Counter]
                     "lemma": head,
                     "gloss": first_gloss(e),
                     "explicit": explicit,
-                    "source": "wiktionary_ha_ccbysa",
+                    "source": WIKTIONARY,
                 }
             )
     stats["records"] = len(out)
     return out, stats
 
 
-def patterns_by_word(records: Iterable[dict], only_explicit: bool = False) -> Dict[str, set]:
-    by: Dict[str, set] = defaultdict(set)
+# ---------------------------------------------------------------------------------------------
+# Newman
+# ---------------------------------------------------------------------------------------------
+_FORM_RE = re.compile(r"\((pl|vn)\.\s*([^)]*)\)")
+
+
+def forms_from_context(context: str) -> List[Tuple[str, str]]:
+    """Plural and verbal-noun forms written in a Newman `context`, e.g. 'n.m. (pl. zùgàzùgai)'."""
+    out: List[Tuple[str, str]] = []
+    for kind, body in _FORM_RE.findall(context or ""):
+        for tok in re.split(r"[,;]|\bor\b", body):
+            tok = tok.strip()
+            if tok:
+                out.append(("plural" if kind == "pl" else "verbal-noun", tok))
+    return out
+
+
+def build_from_newman(rows: Iterable[dict]) -> Tuple[List[dict], Counter]:
+    """Single-word headwords plus the plurals / verbal nouns they list.
+
+    A form with a tone mark gives an `explicit` record. A form with none gives an `inferred`
+    all-high record (unmarked = high), which the merge puts in the `newman_bare` tier.
+    """
+    stats: Counter = Counter()
+    out: List[dict] = []
+    seen = set()
+
+    def add(word_form: str, kind: str, row: dict, lemma: str) -> None:
+        parsed = parse_marked(word_form)
+        if parsed is None:
+            stats["skipped_unparseable"] += 1
+            return
+        tones, transcribed = parsed
+        key = plain(word_form)
+        pos = re.sub(r"\s*\(.*", "", row.get("context") or "").strip()
+        ident = (key, kind, tuple(tones), pos, row.get("source_en"))
+        if ident in seen:
+            return
+        seen.add(ident)
+        out.append(
+            {
+                "word": key,
+                "tones": tones,
+                "marked": nfc(word_form.lower()),
+                "kind": kind,
+                "pos": pos,
+                "lemma": lemma,
+                "gloss": (row.get("source_en") or "")[:80],
+                "explicit": transcribed,
+                "inferred": not transcribed,
+                "source": NEWMAN,
+            }
+        )
+        stats[f"records_{kind}" if transcribed else f"records_{kind}_bare_inferred_high"] += 1
+
+    for row in rows:
+        stats["rows"] += 1
+        head = (row.get("target_ha") or "").strip()
+        if head and " " not in head and "-" not in head:
+            add(head, "canonical", row, head)
+        else:
+            stats["skipped_multiword_headword"] += 1
+        for kind, tok in forms_from_context(row.get("context") or ""):
+            if " " in tok or "-" in tok:
+                continue
+            add(tok, kind, row, head)
+    stats["records"] = len(out)
+    return out, stats
+
+
+# ---------------------------------------------------------------------------------------------
+# Merge: Newman first
+# ---------------------------------------------------------------------------------------------
+def merge(newman: Iterable[dict], wiktionary: Iterable[dict]) -> List[dict]:
+    """Newman's pattern wins; a Wiktionary word absent from Newman is kept as lower confidence."""
+    n_by: Dict[str, List[dict]] = defaultdict(list)
+    w_by: Dict[str, List[dict]] = defaultdict(list)
+    for r in newman:
+        n_by[r["word"]].append(r)
+    for r in wiktionary:
+        if r["explicit"]:
+            w_by[r["word"]].append(r)
+    out: List[dict] = []
+    for word in sorted(set(n_by) | set(w_by)):
+        if word in n_by:
+            w_patterns = {tuple(r["tones"]) for r in w_by.get(word, [])}
+            for r in n_by[word]:
+                rec = dict(r)
+                rec["sources"] = [NEWMAN]
+                if tuple(r["tones"]) in w_patterns:
+                    rec["confidence"] = "both"
+                    rec["sources"].append(WIKTIONARY)
+                else:
+                    rec["confidence"] = "newman_bare" if r.get("inferred") else "newman"
+                    if w_patterns:
+                        rec["alt_wiktionary"] = sorted([list(p) for p in w_patterns])
+                out.append(rec)
+        else:
+            for r in w_by[word]:
+                rec = dict(r)
+                rec["sources"] = [WIKTIONARY]
+                rec["confidence"] = "wiktionary_only"
+                out.append(rec)
+    return out
+
+
+def runtime_mapping(records: Iterable[dict], tiers: Iterable[str]) -> Dict[str, List[str]]:
+    """word -> melody, only for words whose records in `tiers` all agree (ambiguous words are
+    left out: precision over recall)."""
+    wanted = set(tiers)
+    by: Dict[str, Set[Tuple[str, ...]]] = defaultdict(set)
     for r in records:
-        if only_explicit and not r["explicit"]:
-            continue
-        by[r["word"]].add(tuple(r["tones"]))
-    return by
+        if r["confidence"] in wanted:
+            by[r["word"]].add(tuple(r["tones"]))
+    return {w: list(next(iter(p))) for w, p in sorted(by.items()) if len(p) == 1}
 
 
-def newman_patterns(rows: Iterable[dict]) -> Dict[str, set]:
-    by: Dict[str, set] = defaultdict(set)
-    for r in rows:
-        h = (r.get("target_ha") or "").strip().lower()
-        if not h or " " in h or "-" in h:
-            continue
-        parsed = parse_marked(h)
-        if parsed and parsed[1]:  # only forms with at least one explicit tone mark
-            by[plain(h)].add(tuple(parsed[0]))
-    return by
+# ---------------------------------------------------------------------------------------------
+# Corpus frequency
+# ---------------------------------------------------------------------------------------------
+_TOKEN_RE = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)*")
 
 
+def corpus_counts(path: Path) -> Counter:
+    counts: Counter = Counter()
+    with path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            text = d.get("text") or d.get("content") or ""
+            text = re.sub(r"https?://\S+|\[\[.*?\]\]|\{\{.*?\}\}", " ", text)
+            counts.update(plain(w) for w in _TOKEN_RE.findall(text))
+    return counts
+
+
+def coverage(mapping: Dict[str, List[str]], counts: Counter) -> float:
+    total = sum(counts.values())
+    return sum(c for w, c in counts.items() if w in mapping) / total if total else 0.0
+
+
+# ---------------------------------------------------------------------------------------------
+# Review sample
+# ---------------------------------------------------------------------------------------------
 def fmt(tones: Iterable[str]) -> str:
     return "-".join(tones)
 
 
-def stratified_sample(records: List[dict], newman: Dict[str, set], n: int, seed: int) -> List[dict]:
-    """Pick n rows across situations a reviewer should see, reproducibly."""
+def review_sample(records: List[dict], counts: Counter, n: int, seed: int) -> List[dict]:
+    """A frequency-weighted sample covering the cases a native speaker most needs to judge."""
     rng = random.Random(seed)
-    by_word = patterns_by_word(records, only_explicit=True)
-    gyara = {w: tuple(t) for w, t in GYARA_LEXICON.items()}
-    canon = [
+    usable = [
         r
         for r in records
         if r["kind"] == "canonical"
-        and r["explicit"]
-        and not r["gloss"].lower().startswith(("alternative form", "alternative spelling"))
-        and r["pos"] in ("noun", "verb", "adj", "adv", "num", "intj", "prep", "conj", "pron")
+        and " " not in r["marked"]
+        and not (r.get("gloss") or "")
+        .lower()
+        .startswith(("alternative form", "alternative spelling"))
+        and r.get("pos") != "name"
     ]
-    buckets: Dict[str, List[dict]] = {
-        "agrees with Newman": [],
-        "differs from Newman": [],
-        "homograph (several tone patterns)": [],
-        "differs from gyara's current list": [],
-        "short word (1-2 syllables)": [],
-        "verb or adjective": [],
-        "no Newman entry": [],
+    by_word: Dict[str, Set[Tuple[str, ...]]] = defaultdict(set)
+    for r in records:
+        by_word[r["word"]].add(tuple(r["tones"]))
+
+    def freq(r: dict) -> int:
+        return counts.get(r["word"], 0)
+
+    def top(rows: List[dict], k: int) -> List[dict]:
+        return sorted(rows, key=lambda r: (-freq(r), r["word"]))[:k]
+
+    pools: Dict[str, List[dict]] = {
+        "frequent word (Newman or both)": top(
+            [r for r in usable if r["confidence"] in TRUSTED_TIERS], 500
+        ),
+        "Wiktionary only": top([r for r in usable if r["confidence"] == "wiktionary_only"], 400),
+        "Newman differs from Wiktionary": top([r for r in usable if r.get("alt_wiktionary")], 300)
+        or [r for r in usable if r.get("alt_wiktionary")],
+        "bare Newman entry (read as all-high)": [
+            r for r in usable if r["confidence"] == "newman_bare"
+        ],
+        "falling tone (Newman)": [r for r in usable if "F" in r["tones"] and r["source"] == NEWMAN],
+        "plural or verbal noun (Newman)": [
+            r for r in records if r["source"] == NEWMAN and r["kind"] in ("plural", "verbal-noun")
+        ],
     }
-    for r in canon:
-        w, pat = r["word"], tuple(r["tones"])
-        nm = newman.get(w)
-        if nm:
-            buckets["agrees with Newman" if pat in nm else "differs from Newman"].append(r)
-        else:
-            buckets["no Newman entry"].append(r)
-        if len(by_word[w]) > 1:
-            buckets["homograph (several tone patterns)"].append(r)
-        if w in gyara and len(gyara[w]) == len(pat) and gyara[w] != pat:
-            buckets["differs from gyara's current list"].append(r)
-        if len(pat) <= 2:
-            buckets["short word (1-2 syllables)"].append(r)
-        if r["pos"] in ("verb", "adj"):
-            buckets["verb or adjective"].append(r)
     quota = {
-        "agrees with Newman": 9,
-        "differs from Newman": 12,
-        "homograph (several tone patterns)": 7,
-        "differs from gyara's current list": 8,
-        "short word (1-2 syllables)": 5,
-        "verb or adjective": 5,
-        "no Newman entry": 4,
+        "frequent word (Newman or both)": 12,
+        "Wiktionary only": 10,
+        "Newman differs from Wiktionary": 12,
+        "bare Newman entry (read as all-high)": 6,
+        "falling tone (Newman)": 5,
+        "plural or verbal noun (Newman)": 5,
     }
+    assert set(quota) == set(pools)  # every stratum needs a quota
     picked: List[dict] = []
-    used = set()
-    for name, rows in buckets.items():
-        rows = [r for r in rows if (r["word"], r["marked"]) not in used]
-        rng.shuffle(rows)
-        for r in rows[: quota[name]]:
-            used.add((r["word"], r["marked"]))
+    used: Set[str] = set()
+    for name, pool in pools.items():
+        pool = [r for r in pool if r["word"] not in used]
+        # weight towards frequent words but keep some variety
+        rng.shuffle(pool)
+        pool.sort(key=lambda r: -min(freq(r), 50) + rng.random() * 25)
+        for r in pool[: quota[name]]:
+            used.add(r["word"])
             picked.append({**r, "why": name})
-    pool = [r for r in canon if (r["word"], r["marked"]) not in used]
-    rng.shuffle(pool)
-    for r in pool:
+    rest = [r for r in usable if r["word"] not in used]
+    rng.shuffle(rest)
+    for r in rest:
         if len(picked) >= n:
             break
-        used.add((r["word"], r["marked"]))
+        used.add(r["word"])
         picked.append({**r, "why": "random"})
+    for r in picked:
+        r["freq"] = freq(r)
+        r["n_patterns"] = len(by_word[r["word"]])
     picked = picked[:n]
-    picked.sort(key=lambda r: r["word"])
+    picked.sort(key=lambda r: (-r["freq"], r["word"]))
     return picked
 
 
-def write_review(sample: List[dict], newman: Dict[str, set], out_dir: Path) -> None:
-    gyara = {w: tuple(t) for w, t in GYARA_LEXICON.items()}
+def write_review(sample: List[dict], out_dir: Path) -> None:
     rows = []
     for i, r in enumerate(sample, 1):
-        w = r["word"]
-        nm = newman.get(w)
+        alt = " / ".join(fmt(p) for p in r.get("alt_wiktionary", []))
         rows.append(
             {
                 "n": i,
-                "word": w,
+                "word": r["word"],
                 "meaning": r["gloss"],
                 "pos": r["pos"],
-                "wiktionary": r["marked"],
-                "wiktionary_tones": fmt(r["tones"]),
-                "newman_tones": " / ".join(fmt(t) for t in sorted(nm)) if nm else "",
-                "gyara_current": fmt(gyara[w]) if w in gyara else "",
+                "source": r["confidence"],
+                "proposed": r["marked"],
+                "proposed_tones": fmt(r["tones"]),
+                "wiktionary_differs": alt,
+                "corpus_count": r["freq"],
                 "why_in_sample": r["why"],
                 "correct_tones": "",
                 "notes": "",
@@ -278,71 +434,98 @@ def write_review(sample: List[dict], newman: Dict[str, set], out_dir: Path) -> N
         writer.writeheader()
         writer.writerows(rows)
     lines = [
-        "# Hausa tone lexicon: review sheet",
+        "# Hausa tone lexicon: review sheet (Newman first)",
         "",
-        f"{len(rows)} words from the Wiktionary extract, chosen to cover easy and hard cases. "
-        "Please tell me which tone patterns are **right**, which are **wrong**, and what the "
-        "correct pattern is. Corrections become a native-speaker test set.",
+        f"{len(rows)} words, weighted towards frequent words and towards the cases that need a native "
+        "speaker. `source` is where the proposed pattern comes from: `both` (Newman and Wiktionary "
+        "agree), `newman`, `newman_bare` (Newman has no tone mark, so it is read as all-high) or "
+        "`wiktionary_only` (the weakest tier).",
         "",
-        "**How to read it.** Tones are per syllable: `H` high, `L` low, `F` falling (high-low "
-        "on one syllable). I assumed an *unmarked* vowel is high and a *macron* only marks "
-        "vowel length. If either assumption is wrong, that is the most important thing to tell "
-        "me.",
-        "",
-        "| # | word | meaning | Wiktionary | → tones | Newman → tones | gyara now | why shown |",
+        "| # | word | meaning | proposed | → tones | source | Wiktionary differs | count |",
         "|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         lines.append(
-            f"| {r['n']} | **{r['word']}** | {r['meaning']} ({r['pos']}) | {r['wiktionary']} | "
-            f"`{r['wiktionary_tones']}` | `{r['newman_tones'] or '—'}` | "
-            f"`{r['gyara_current'] or '—'}` | {r['why_in_sample']} |"
+            f"| {r['n']} | **{r['word']}** | {r['meaning']} ({r['pos']}) | {r['proposed']} | "
+            f"`{r['proposed_tones']}` | {r['source']} | `{r['wiktionary_differs'] or '—'}` | {r['corpus_count']} |"
         )
     (out_dir / "review.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_jsonl(path: Path, rows: Iterable[dict]) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--wiktionary", required=True, type=Path)
-    ap.add_argument("--newman", type=Path, help="validation only; never copied to the output")
+    ap.add_argument(
+        "--newman", type=Path, help="Newman (1977) pairs; the primary source when given"
+    )
+    ap.add_argument("--corpus", type=Path, help="Hausa text (jsonl with a text/content field)")
     ap.add_argument("--out-dir", required=True, type=Path)
     ap.add_argument("--sample", type=int, default=50)
     ap.add_argument("--seed", type=int, default=20261015)
     args = ap.parse_args(argv)
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    records, stats = build_from_wiktionary(load_jsonl(args.wiktionary))
-    with (args.out_dir / "lexicon.jsonl").open("w", encoding="utf-8") as fh:
-        for r in sorted(records, key=lambda r: (r["word"], r["kind"], r["tones"])):
-            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    wik, wik_stats = build_from_wiktionary(load_jsonl(args.wiktionary))
+    new, new_stats = build_from_newman(load_jsonl(args.newman)) if args.newman else ([], Counter())
+    merged = merge(new, wik)
+    sort_key = lambda r: (r["word"], r["kind"], r["tones"])  # noqa: E731
+    write_jsonl(args.out_dir / "lexicon.jsonl", sorted(merged, key=sort_key))
+    write_jsonl(args.out_dir / "lexicon-newman.jsonl", sorted(new, key=sort_key))
+    write_jsonl(args.out_dir / "lexicon-wiktionary.jsonl", sorted(wik, key=sort_key))
 
-    explicit = patterns_by_word(records, only_explicit=True)
+    trusted = runtime_mapping(merged, TRUSTED_TIERS)
+    with_bare = runtime_mapping(merged, BARE_TIERS)
+    everything = runtime_mapping(merged, BARE_TIERS + ("wiktionary_only",))
+    (args.out_dir / "runtime-trusted.json").write_text(
+        json.dumps(trusted, ensure_ascii=False, indent=0) + "\n", encoding="utf-8"
+    )
+    (args.out_dir / "runtime-with-bare.json").write_text(
+        json.dumps(with_bare, ensure_ascii=False, indent=0) + "\n", encoding="utf-8"
+    )
+    (args.out_dir / "runtime-all.json").write_text(
+        json.dumps(everything, ensure_ascii=False, indent=0) + "\n", encoding="utf-8"
+    )
+
+    tiers = Counter(r["confidence"] for r in merged)
+    words_by_tier = {t: len({r["word"] for r in merged if r["confidence"] == t}) for t in tiers}
     report: Dict[str, object] = {
-        **stats,
-        "distinct_words": len({r["word"] for r in records}),
-        "distinct_words_with_explicit_marks": len(explicit),
-        "homographs_with_several_patterns": sum(1 for v in explicit.values() if len(v) > 1),
-        "records_by_kind": dict(Counter(r["kind"] for r in records).most_common()),
-        "records_by_pos": dict(Counter(r["pos"] for r in records).most_common(8)),
+        "wiktionary": dict(wik_stats),
+        "newman": dict(new_stats),
+        "records_by_tier": dict(tiers),
+        "distinct_words_by_tier": words_by_tier,
+        "distinct_words_total": len({r["word"] for r in merged}),
+        "newman_wins_over_a_differing_wiktionary_pattern": sum(
+            1 for r in merged if r.get("alt_wiktionary")
+        ),
+        "runtime_words": {
+            "trusted": len(trusted),
+            "with_bare": len(with_bare),
+            "with_wiktionary_only": len(everything),
+        },
     }
-    gyara = {w: tuple(t) for w, t in GYARA_LEXICON.items()}
-    comparable = [w for w in gyara if w in explicit]
-    report["gyara_current_lexicon_overlap"] = {
+    old = {w: tuple(t) for w, t in GYARA_LEXICON.items()}
+    comparable = [w for w in old if w in trusted]
+    report["old_101_word_list_vs_trusted"] = {
         "words_in_both": len(comparable),
-        "agree": sum(1 for w in comparable if gyara[w] in explicit[w]),
+        "agree": sum(1 for w in comparable if old[w] == tuple(trusted[w])),
     }
-    newman: Dict[str, set] = {}
-    if args.newman:
-        newman = newman_patterns(load_jsonl(args.newman))
-        both = [w for w in explicit if w in newman]
-        report["newman_validation"] = {
-            "words_marked_in_both": len(both),
-            "identical_tone_pattern": sum(1 for w in both if explicit[w] & newman[w]),
+    counts: Counter = Counter()
+    if args.corpus:
+        counts = corpus_counts(args.corpus)
+        report["corpus_tokens"] = sum(counts.values())
+        report["corpus_coverage"] = {
+            "trusted": round(coverage(trusted, counts), 4),
+            "with_bare": round(coverage(with_bare, counts), 4),
+            "with_wiktionary_only": round(coverage(everything, counts), 4),
         }
-    if args.sample:
-        write_review(
-            stratified_sample(records, newman, args.sample, args.seed), newman, args.out_dir
-        )
+    if args.sample and merged:
+        write_review(review_sample(merged, counts, args.sample, args.seed), args.out_dir)
     (args.out_dir / "report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
