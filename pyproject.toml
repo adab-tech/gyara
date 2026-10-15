@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "shakara"
+version = "0.1.0"
+description = "Developer toolkit for Hausa text: orthography, numbers, syllables, tone, and dataset QA."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "ADAB-TECH Labs" }]
+keywords = ["hausa", "nlp", "orthography", "african-languages", "tts"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+shakara = "shakara.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/shakara"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
