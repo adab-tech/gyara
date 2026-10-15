@@ -2,3 +2,6 @@ base/
 voice.json
 .espeak-data/
 review/out/
+__pycache__/
+.pytest_cache/
+base-*/

@@ -45,10 +45,14 @@ pulses to measure.
 - The base voice is eSpeak NG with Swahili settings (`espeak.py`). It is a formant synthesizer, so
   it sounds robotic, and it only approximates ɓ ɗ ƙ ƴ, c, j and r. The tones are right; the voice
   is not good to listen to for long. Reviewers said as much.
-- Better base voice: Murya's own Piper model (`adab-tech/murya-piper-hausa-tts`, CC-BY-NC-SA). It
-  needs syllable spans for natural speech. Plan: expose the duration predictor's output from the
-  ONNX graph (the `Ceil` node), turn it into per-character time spans, then trim to voiced extent
-  with `refine_nuclei`. Not built yet.
+- Better base voice: Murya's own Piper model (`adab-tech/murya-piper-hausa-tts`, CC-BY-NC-SA).
+  `build_neural_base.py` is written for it and not yet run on the real model. It speaks each word as
+  plain text, takes rough syllable positions from the duration predictor (`piper_base.py` adds the
+  `Ceil` node's output to the ONNX graph), and places each vowel's voiced stretch from the audio
+  (`nuclei.py`). The finder was tested on eSpeak recordings with known timings: with hints 40 ms off,
+  97 to 100 percent of syllables land in the right place (88 to 98 percent cover at least half of the
+  true vowel); without hints 91 to 99 percent. The Piper wrapper is tested against a stand-in ONNX
+  graph only.
 - Pitch is set by rule: flat plateaus, no downdrift, no consonant effects on pitch.
 - Nothing here was checked by ear. Pitch is measured; naturalness is not.
 
@@ -58,7 +62,11 @@ pulses to measure.
 |---|---|
 | `espeak.py` | ctypes binding to libespeak-ng, plus the flat Swahili voice |
 | `g2p.py` | Hausa spelling to Swahili-style spelling, vowel lengths from the marked form |
-| `build_base.py` | words to monotone recordings, syllable spans, pitch marks |
+| `build_base.py` | words to monotone eSpeak recordings, syllable spans, pitch marks |
+| `build_neural_base.py` | the same from a Piper voice, spans from its durations and the audio |
+| `piper_base.py` | runs a Piper ONNX voice as Murya's backend does and recovers per-character timing |
+| `nuclei.py` | finds each syllable's voiced vowel stretch in a recording |
+| `marks.py` | glottal pulse marks and their clean-up |
 | `export_voice.py` | recordings to the compact `voice.json` |
 | `tonevoice.py`, `tonevoice.js` | the TD-PSOLA tone engine (reference and browser) |
 | `node_render.js` | renders a list of patterns with the JS engine |
