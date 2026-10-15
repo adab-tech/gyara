@@ -12,6 +12,7 @@ import {
   syllabify,
 } from "../src/index.js";
 import { LEXICON } from "../src/lexicon.js";
+import type { Tone } from "../src/index.js";
 
 // Golden vectors generated from the Python implementation (scripts/gen_vectors.py).
 const V = JSON.parse(
@@ -43,6 +44,8 @@ each("speech_keep_glosses", (t: string) => prepareForSpeech(t, { stripGlosses: f
 each("syllables", (w: string) => syllabify(w).map((s) => [s.text, s.weight]));
 each("tone", (t: string) => annotateTones(t));
 each("tone_guess", (t: string) => annotateTones(t, { guess: true }));
+const custom = new Map<string, Tone[]>(Object.entries(V.custom_lexicon as Record<string, Tone[]>));
+each("tone_custom", (t: string) => annotateTones(t, { lexicon: custom }));
 
 describe("vectors: audit", () => {
   it("matches Python", () => {

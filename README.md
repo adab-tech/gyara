@@ -14,7 +14,7 @@ Pure Python, zero dependencies, Python 3.9+.
 | `numbers` | Standard Hausa cardinals (`2026` → *dubu biyu da ashirin da shida*), decimals, phone numbers/codes digit-by-digit |
 | `speech` | TTS front end: ₦ $ € £ and % to words, `a/b` to *a ko b*, drop English glosses, strip markup |
 | `syllables` | Syllabify with light/heavy weight |
-| `tone` | Heuristic tone marks: curated lexicon + plural-suffix melodies (unknown words are left unmarked unless `guess=True`) |
+| `tone` | Heuristic tone marks: curated lexicon + plural-suffix melodies (unknown words are left unmarked unless `guess=True`). Tones are `H` (acute), `L` (grave) or `F` falling (circumflex); pass `lexicon=` to supply your own word → melody map |
 | `audit` | Orthography audit and corpus statistics (type/token ratio, duplicates, hook coverage) |
 
 ## Install
@@ -32,6 +32,7 @@ normalize("K'asar Hausa da b'aki")      # 'Ƙasar Hausa da ɓaki'
 spell_out_numbers("Shekara 2026")       # 'Shekara dubu biyu da ashirin da shida'
 [s.text for s in syllabify("kwanduna")] # ['kwan', 'du', 'na']
 annotate_tones("motoci")                # 'mótòcí'
+annotate_tones("abada", lexicon={"abada": ["L", "L", "F"]})  # 'àbàdâ'
 audit_text("k'asa").ok                  # False
 ```
 

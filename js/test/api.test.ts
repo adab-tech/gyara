@@ -60,6 +60,31 @@ describe("syllables and tone", () => {
   });
 });
 
+describe("custom tone lexicon", () => {
+  const lex = new Map<string, Array<"H" | "L" | "F">>([
+    ["abada", ["L", "L", "F"]],
+    ["sannu", ["L", "H"]],
+    ["rana", ["H", "H", "H", "L"]],
+  ]);
+  it("marks a falling tone with a circumflex", () => {
+    expect(annotateTones("abada", { lexicon: lex })).toBe("àbàdâ");
+  });
+  it("beats the built-in word list but falls back for other words", () => {
+    expect(annotateTones("sannu")).toBe("sánnù");
+    expect(annotateTones("sannu", { lexicon: lex })).toBe("sànnú");
+    expect(annotateTones("motoci", { lexicon: lex })).toBe("mótòcí");
+  });
+  it("right-aligns a melody longer than the word", () => {
+    expect(annotateTones("rana", { lexicon: lex })).toBe("ránà");
+  });
+  it("rejects invalid melodies", () => {
+    expect(() => annotateTones("abada", { lexicon: new Map([["abada", []]]) })).toThrow(RangeError);
+    expect(() =>
+      annotateTones("abada", { lexicon: new Map([["abada", ["X" as never]]]) }),
+    ).toThrow(RangeError);
+  });
+});
+
 describe("audit", () => {
   it("flags problems, warns on quoted lookalikes", () => {
     expect(auditText("k'asa ٢٠١٥").ok).toBe(false);

@@ -12,5 +12,5 @@ export { prepareForSpeech, stripEnglishGlosses } from "./speech.js";
 export { syllabify } from "./syllables.js";
 export type { Syllable } from "./syllables.js";
 export { annotateTones, melodyFor } from "./tone.js";
-export type { Tone } from "./tone.js";
+export type { Tone, ToneLexicon, ToneOptions } from "./tone.js";
 export const version = "0.1.0";

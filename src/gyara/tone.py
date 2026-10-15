@@ -5,16 +5,24 @@ a curated lexicon of common words, a few plural-suffix melodies, and an
 optional low-confidence guess for everything else. Unknown words are left
 unmarked unless ``guess=True``. Melodies are aligned to syllables
 right-to-left; the leftmost tone spreads over any extra syllables.
+
+A melody is a list of ``"H"`` (high, acute), ``"L"`` (low, grave) or ``"F"``
+(falling, circumflex) -- one entry per syllable. Pass ``lexicon=`` to supply
+your own word -> melody mapping (lowercase keys); it is consulted before the
+built-in word list.
 """
 
 import re
 import unicodedata
-from typing import Dict, List, Optional
+from typing import Dict, List, Mapping, Optional, Sequence
 
 from .syllables import syllabify
 
-ACUTE = "́"  # high
-GRAVE = "̀"  # low
+ACUTE = chr(0x0301)  # high
+GRAVE = chr(0x0300)  # low
+CIRCUMFLEX = chr(0x0302)  # falling
+
+_ACCENTS = {"H": ACUTE, "L": GRAVE, "F": CIRCUMFLEX}
 
 LEXICON: Dict[str, List[str]] = {
     # greetings & courtesy
@@ -137,9 +145,25 @@ _LETTERS = r"\wƁƊƘƳɓɗƙƴ'’ʼ"
 _WORD_RE = re.compile(rf"^([^{_LETTERS}]*)([{_LETTERS}]+)([^{_LETTERS}]*)$")
 
 
-def melody_for(word: str, *, guess: bool = False) -> Optional[List[str]]:
-    """Tone melody (list of "H"/"L") for a word, or None if unknown."""
+def _checked(melody: Sequence[str]) -> List[str]:
+    bad = [t for t in melody if t not in _ACCENTS]
+    if bad or not melody:
+        raise ValueError(
+            f"a tone melody is a non-empty list of 'H', 'L' or 'F'; got {list(melody)!r}"
+        )
+    return list(melody)
+
+
+def melody_for(
+    word: str,
+    *,
+    guess: bool = False,
+    lexicon: Optional[Mapping[str, Sequence[str]]] = None,
+) -> Optional[List[str]]:
+    """Tone melody (list of "H"/"L"/"F") for a word, or None if unknown."""
     low = word.lower()
+    if lexicon is not None and low in lexicon:
+        return _checked(lexicon[low])
     if low in LEXICON:
         return LEXICON[low]
     for suffixes, melody in _PLURAL_SUFFIXES:
@@ -165,14 +189,21 @@ def _mark(syllable: str, tone: str) -> str:
     m = re.search(r"[aeiouAEIOU]", syllable)
     if not m:
         return syllable
-    return syllable[: m.end()] + (ACUTE if tone == "H" else GRAVE) + syllable[m.end() :]
+    return syllable[: m.end()] + _ACCENTS[tone] + syllable[m.end() :]
 
 
-def annotate_tones(text: str, *, guess: bool = False) -> str:
-    """Mark known words with acute (H) / grave (L) accents on each syllable.
+def annotate_tones(
+    text: str,
+    *,
+    guess: bool = False,
+    lexicon: Optional[Mapping[str, Sequence[str]]] = None,
+) -> str:
+    """Mark known words with acute (H), grave (L) or circumflex (F) accents on each syllable.
 
     >>> annotate_tones("kwanduna motoci")
     'kwándùnà mótòcí'
+    >>> annotate_tones("abada", lexicon={"abada": ["L", "L", "F"]})
+    'àbàdâ'
     """
     out = []
     for token in text.split():
@@ -182,7 +213,7 @@ def annotate_tones(text: str, *, guess: bool = False) -> str:
             continue
         left, word, right = m.groups()
         sylls = syllabify(word)
-        melody = melody_for(word, guess=guess)
+        melody = melody_for(word, guess=guess, lexicon=lexicon)
         if not sylls or melody is None:
             out.append(token)
             continue

@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import * as g from "../dist/index.js";
 
 const V = JSON.parse(readFileSync(new URL("../../tests/vectors.json", import.meta.url), "utf-8"));
+const custom = new Map(Object.entries(V.custom_lexicon));
 const checks = {
   normalize: (t) => g.normalize(t),
   normalize_keep_digits: (t) => g.normalize(t, { digits: false }),
@@ -16,6 +17,7 @@ const checks = {
   syllables: (w) => g.syllabify(w).map((s) => [s.text, s.weight]),
   tone: (t) => g.annotateTones(t),
   tone_guess: (t) => g.annotateTones(t, { guess: true }),
+  tone_custom: (t) => g.annotateTones(t, { lexicon: custom }),
 };
 
 let total = 0;

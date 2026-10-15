@@ -12038,6 +12038,336 @@
    "out": ",die, ƁKtk_).D%tK775"
   }
  ],
+ "tone_custom": [
+  {
+   "in": "abada",
+   "out": "àbàdâ"
+  },
+  {
+   "in": "Abada!",
+   "out": "Àbàdâ!"
+  },
+  {
+   "in": "mutum ya zo",
+   "out": "mùtûm yà zó"
+  },
+  {
+   "in": "kai kai",
+   "out": "kâi kâi"
+  },
+  {
+   "in": "(gida)",
+   "out": "(gídá)"
+  },
+  {
+   "in": "sannu",
+   "out": "sànnú"
+  },
+  {
+   "in": "safa tano",
+   "out": "sàfâ tano"
+  },
+  {
+   "in": "ɗari ɗari",
+   "out": "ɗàrí ɗàrí"
+  },
+  {
+   "in": "Yara",
+   "out": "Yârá"
+  },
+  {
+   "in": "rana",
+   "out": "ránà"
+  },
+  {
+   "in": "ABADA",
+   "out": "ÀBÀDÂ"
+  },
+  {
+   "in": "sannu motoci kwanduna",
+   "out": "sànnú mótòcí kwándùnà"
+  },
+  {
+   "in": "",
+   "out": ""
+  },
+  {
+   "in": "doki",
+   "out": "dókì"
+  },
+  {
+   "in": "b'aki",
+   "out": "b'aki"
+  },
+  {
+   "in": "d'an gari",
+   "out": "d'an gari"
+  },
+  {
+   "in": "k'asa",
+   "out": "k'asa"
+  },
+  {
+   "in": "y'anci",
+   "out": "y'anci"
+  },
+  {
+   "in": "'yanci",
+   "out": "'yanci"
+  },
+  {
+   "in": "gab'a k'arfi",
+   "out": "gab'a k'arfi"
+  },
+  {
+   "in": "B'aure ne sunan garin.",
+   "out": "B'aure né sunan garin."
+  },
+  {
+   "in": "K'asa 'Yanci D'an TS'a Ts'a ts'a",
+   "out": "K'asa 'Yanci D'an TS'a Ts'a ts'a"
+  },
+  {
+   "in": "ya'ya",
+   "out": "ya'ya"
+  },
+  {
+   "in": "ya'yan Najeriya",
+   "out": "ya'yan Najeriya"
+  },
+  {
+   "in": "ya ce 'yaro'",
+   "out": "yà cé 'yaro'"
+  },
+  {
+   "in": "he said 'k'",
+   "out": "he said 'k'"
+  },
+  {
+   "in": "'b' da 'd'",
+   "out": "'b' dà 'd'"
+  },
+  {
+   "in": "'k'asa'",
+   "out": "'k'asa'"
+  },
+  {
+   "in": "('yan)",
+   "out": "('yan)"
+  },
+  {
+   "in": "ɗan'uwa al'ada a'a",
+   "out": "ɗan'uwa àl'ádà a'a"
+  },
+  {
+   "in": "k’asa ʼyan",
+   "out": "k’asa ʼyan"
+  },
+  {
+   "in": "Zaben ٢٠١٥ ۱۲۳",
+   "out": "Zaben ٢٠١٥ ۱۲۳"
+  },
+  {
+   "in": "ts'",
+   "out": "ts'"
+  },
+  {
+   "in": "the 'ts'",
+   "out": "the 'ts'"
+  },
+  {
+   "in": "Ina son 'yanci, 'yan uwa",
+   "out": "Ìná son 'yanci, 'yan uwa"
+  },
+  {
+   "in": "Kudin ya kai ₦500",
+   "out": "Kudin yà kâi ₦500"
+  },
+  {
+   "in": "Farashin $20 ne",
+   "out": "Farashin $20 né"
+  },
+  {
+   "in": "kashi 50% na mutane",
+   "out": "kashi 50% nà mútánè"
+  },
+  {
+   "in": "zan taimaka maka/miki",
+   "out": "zan taimaka maka/miki"
+  },
+  {
+   "in": "Babban taken\nabu na farko",
+   "out": "Babban taken abu nà farko"
+  },
+  {
+   "in": "**Muhimmi**: ga jerin abubuwa",
+   "out": "**Muhimmi**: ga jerin abubuwa"
+  },
+  {
+   "in": "wannan _kalma_ da ^alama da $",
+   "out": "wannan _kalma_ dà ^alama dà $"
+  },
+  {
+   "in": "k'asa 2",
+   "out": "k'asa 2"
+  },
+  {
+   "in": "ruwa (water) yana da kyau",
+   "out": "rùwá (water) yana dà kyau"
+  },
+  {
+   "in": "ilimin halittu (Biology) yana da kyau",
+   "out": "ilimin halittu (Biology) yana dà kyau"
+  },
+  {
+   "in": "kalmar (misali) a jimla",
+   "out": "kalmar (misali) à jimla"
+  },
+  {
+   "in": "Kano (birni mafi girma a Arewa) tana nan",
+   "out": "Kano (birni mafi gírmà à Arewa) tana nan"
+  },
+  {
+   "in": "abu (ƙanana)",
+   "out": "abu (ƙanana)"
+  },
+  {
+   "in": "abu (a very long english aside here)",
+   "out": "abu (à very long english aside here)"
+  },
+  {
+   "in": "08012345678",
+   "out": "08012345678"
+  },
+  {
+   "in": "0500",
+   "out": "0500"
+  },
+  {
+   "in": "0.5",
+   "out": "0.5"
+  },
+  {
+   "in": "3.5 dola",
+   "out": "3.5 dola"
+  },
+  {
+   "in": "1,500 naira",
+   "out": "1,500 naira"
+  },
+  {
+   "in": "a1b",
+   "out": "a1b"
+  },
+  {
+   "in": "me@x.com",
+   "out": "me@x.com"
+  },
+  {
+   "in": "shekara ta 2026",
+   "out": "shekara tà 2026"
+  },
+  {
+   "in": "€10 £3",
+   "out": "€10 £3"
+  },
+  {
+   "in": "sannu motoci kwanduna",
+   "out": "sànnú mótòcí kwándùnà"
+  },
+  {
+   "in": "Sannu! Yaro, mace.",
+   "out": "Sànnú! Yárò, mácè."
+  },
+  {
+   "in": "dawakai litattafai gidaye yatsotsi",
+   "out": "dàwákái lìtàttáfái gìdáyè yátsòtsí"
+  },
+  {
+   "in": "al'ada ma'ana mu'amala",
+   "out": "àl'ádà ma'ana mu'amala"
+  },
+  {
+   "in": "tabbata zzzxqk",
+   "out": "tabbata zzzxqk"
+  },
+  {
+   "in": "fadaa fada",
+   "out": "fàdáa fádà"
+  },
+  {
+   "in": "Lafiya lau?",
+   "out": "Láfíyà lau?"
+  },
+  {
+   "in": "hello world",
+   "out": "hello world"
+  },
+  {
+   "in": "  spaced   out  ",
+   "out": "spaced out"
+  },
+  {
+   "in": "emoji 😀 ƙasa",
+   "out": "emoji 😀 ƙàsá"
+  },
+  {
+   "in": "S13adb",
+   "out": "S13adb"
+  },
+  {
+   "in": "S60!9$*ƴ%$$!eƴ4@ke8",
+   "out": "S60!9$*ƴ%$$!eƴ4@ke8"
+  },
+  {
+   "in": "k₦uyʼ",
+   "out": "k₦uyʼ"
+  },
+  {
+   "in": "iu)!Tbd*Ɓa710ta$)₦14k",
+   "out": "iu)!Tbd*Ɓa710ta$)₦14k"
+  }
+ ],
+ "custom_lexicon": {
+  "abada": [
+   "L",
+   "L",
+   "F"
+  ],
+  "mutum": [
+   "L",
+   "F"
+  ],
+  "kai": [
+   "F"
+  ],
+  "gida": [
+   "H",
+   "H"
+  ],
+  "sannu": [
+   "L",
+   "H"
+  ],
+  "safa": [
+   "L",
+   "F"
+  ],
+  "ɗari": [
+   "L",
+   "H"
+  ],
+  "yara": [
+   "F",
+   "H"
+  ],
+  "rana": [
+   "H",
+   "H",
+   "H",
+   "L"
+  ]
+ },
  "tone_guess": [
   {
    "in": "",

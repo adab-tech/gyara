@@ -142,6 +142,33 @@ WORDS = [
     "'",
     "",
 ]
+# A caller-supplied tone lexicon: uses the falling tone "F", overrides a built-in word (sannu),
+# supplies a melody longer than the word (rana), and uses a hooked-letter key.
+CUSTOM_LEXICON = {
+    "abada": ["L", "L", "F"],
+    "mutum": ["L", "F"],
+    "kai": ["F"],
+    "gida": ["H", "H"],
+    "sannu": ["L", "H"],
+    "safa": ["L", "F"],
+    "ɗari": ["L", "H"],
+    "yara": ["F", "H"],
+    "rana": ["H", "H", "H", "L"],
+}
+CUSTOM_TEXTS = [
+    "abada",
+    "Abada!",
+    "mutum ya zo",
+    "kai kai",
+    "(gida)",
+    "sannu",
+    "safa tano",
+    "ɗari ɗari",
+    "Yara",
+    "rana",
+    "ABADA",
+    "sannu motoci kwanduna",
+]
 CORPUS = ["Ina ƙasa", "Ina ƙasa", "", "ina 5 gida", "k'asa b'aki", "Sannu da zuwa", "٢٠١٥ shekara"]
 
 
@@ -169,6 +196,11 @@ def build() -> dict:
             {"in": w, "out": [[s.text, s.weight] for s in syllabify(w)]} for w in syll_words
         ],
         "tone": [{"in": t, "out": annotate_tones(t)} for t in texts],
+        "tone_custom": [
+            {"in": t, "out": annotate_tones(t, lexicon=CUSTOM_LEXICON)}
+            for t in CUSTOM_TEXTS + texts[:60]
+        ],
+        "custom_lexicon": CUSTOM_LEXICON,
         "tone_guess": [{"in": t, "out": annotate_tones(t, guess=True)} for t in texts],
         "audit": [{"in": t, "out": audit_text(t).to_dict()} for t in texts],
         "stats": [{"in": CORPUS, "out": dataset_stats(CORPUS)}],
