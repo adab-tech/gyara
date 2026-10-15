@@ -1,4 +1,4 @@
-"""shakara: developer toolkit for Hausa text."""
+"""gyara: developer toolkit for Hausa text."""
 
 from .audit import AuditReport, audit_text, dataset_stats
 from .numbers import hausa_cardinal, spell_out_numbers

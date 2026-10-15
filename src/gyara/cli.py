@@ -1,4 +1,4 @@
-"""`shakara` command line interface."""
+"""`gyara` command line interface."""
 
 import argparse
 import json
@@ -56,7 +56,7 @@ def _cmd_audit(a: argparse.Namespace) -> int:
         print(f"words: {report.words}   hooked letters: {report.hooked_letters}")
         for issue in report.issues:
             print(f"- {issue}")
-        print("OK" if report.ok else "FAIL (run `shakara fix` to repair)")
+        print("OK" if report.ok else "FAIL (run `gyara fix` to repair)")
     return 0 if report.ok else 1
 
 
@@ -71,8 +71,8 @@ def _cmd_stats(a: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="shakara", description="Hausa text toolkit.")
-    p.add_argument("--version", action="version", version=f"shakara {__version__}")
+    p = argparse.ArgumentParser(prog="gyara", description="Hausa text toolkit.")
+    p.add_argument("--version", action="version", version=f"gyara {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
     def add(

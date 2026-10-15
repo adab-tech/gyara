@@ -1,6 +1,6 @@
 import pytest
 
-from shakara import normalize, normalize_digits
+from gyara import normalize, normalize_digits
 
 
 @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 import pytest
 
-from shakara import hausa_cardinal, spell_out_numbers
+from gyara import hausa_cardinal, spell_out_numbers
 
 
 @pytest.mark.parametrize(

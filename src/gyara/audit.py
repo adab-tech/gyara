@@ -37,7 +37,7 @@ class AuditReport:
 
 
 def audit_text(text: str) -> AuditReport:
-    """Check `text` for orthography problems `shakara fix` can repair."""
+    """Check `text` for orthography problems `gyara fix` can repair."""
     ascii_hooks = count_ascii_hook_candidates(text)
     foreign = len(_FOREIGN_DIGIT_RE.findall(text))
     issues = []

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "shakara"
+name = "gyara"
 version = "0.1.0"
 description = "Developer toolkit for Hausa text: orthography, numbers, syllables, tone, and dataset QA."
 readme = "README.md"
@@ -18,10 +18,10 @@ dev = ["pytest>=7", "pytest-cov", "hypothesis", "ruff", "mypy", "build", "twine"
 api = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27"]
 
 [project.scripts]
-shakara = "shakara.cli:main"
+gyara = "gyara.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/shakara"]
+packages = ["src/gyara"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

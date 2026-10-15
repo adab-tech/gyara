@@ -1,10 +1,10 @@
-# shakara
+# gyara
 
 Developer toolkit for **Hausa text** — extracted from the production code behind
 [Murya](https://murya.ng) so anyone building Hausa NLP, TTS, or datasets can reuse it.
 Pure Python, zero dependencies, Python 3.9+.
 
-> `shakara` is a working name.
+> Gyara (Hausa: "to fix, to correct").
 
 ## What it does
 
@@ -25,7 +25,7 @@ pip install -e '.[dev]'
 ## Python
 
 ```python
-from shakara import normalize, spell_out_numbers, syllabify, annotate_tones, audit_text
+from gyara import normalize, spell_out_numbers, syllabify, annotate_tones, audit_text
 
 normalize("K'asar Hausa da b'aki")      # 'Ƙasar Hausa da ɓaki'
 spell_out_numbers("Shekara 2026")       # 'Shekara dubu biyu da ashirin da shida'
@@ -37,12 +37,12 @@ audit_text("k'asa").ok                  # False
 ## CLI
 
 ```bash
-echo "k'asa b'aki" | shakara fix        # ƙasa ɓaki
-shakara audit corpus.txt                # exit 1 if problems -> usable in CI
-shakara stats corpus.txt --json         # one sentence per line
-shakara syllables kwanduna al\'ada
-shakara tone < text.txt
-shakara spell < text.txt
+echo "k'asa b'aki" | gyara fix        # ƙasa ɓaki
+gyara audit corpus.txt                # exit 1 if problems -> usable in CI
+gyara stats corpus.txt --json         # one sentence per line
+gyara syllables kwanduna al\'ada
+gyara tone < text.txt
+gyara spell < text.txt
 ```
 
 ## Honest limits

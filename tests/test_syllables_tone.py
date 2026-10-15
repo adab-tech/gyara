@@ -1,6 +1,6 @@
 import pytest
 
-from shakara import annotate_tones, syllabify
+from gyara import annotate_tones, syllabify
 
 
 def texts(word):
