@@ -51,7 +51,7 @@ gyara speech < reply.txt            # ready for a TTS voice
 
 - Hausa spelling does not mark tone, so `tone` is a **heuristic**, not a tagger.
 - `ts'` is folded to `ts` (standard orthography writes the ejective without a hook).
-- Apostrophe fixing is syntactic: a quoted `'yaro'` will be read as `'y…`. Audit before bulk-fixing.
+- Apostrophe fixing is conservative: a hook is restored only before a letter, `'y` only at the start of a word, and quote-wrapped words like `'yaro'` are left alone (`audit` warns). `ya'ya` (children) keeps its glottal stop.
 
 ## Develop
 

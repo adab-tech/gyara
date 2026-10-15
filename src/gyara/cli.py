@@ -62,6 +62,8 @@ def _cmd_audit(a: argparse.Namespace) -> int:
         print(f"words: {report.words}   hooked letters: {report.hooked_letters}")
         for issue in report.issues:
             print(f"- {issue}")
+        for warning in report.warnings:
+            print(f"warning: {warning}")
         print("OK" if report.ok else "FAIL (run `gyara fix` to repair)")
     return 0 if report.ok else 1
 
