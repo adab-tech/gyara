@@ -47,6 +47,24 @@ gyara spell < text.txt
 gyara speech < reply.txt            # ready for a TTS voice
 ```
 
+## JavaScript / TypeScript
+
+The same functions are available for Node and the browser in [`js/`](js) (ESM, no runtime
+dependencies, typed). It is a port, kept in lockstep with the Python version by golden test
+vectors (`tests/vectors.json`, generated from Python) that both test suites must pass.
+
+```ts
+import { normalize, prepareForSpeech, syllabify, annotateTones, auditText } from "gyara";
+
+normalize("K'asar Hausa da b'aki");        // "Ƙasar Hausa da ɓaki"
+prepareForSpeech("Farashin ₦500 ne");       // "Farashin naira ɗari biyar ne"
+```
+
+Not published to npm yet; build from source with `cd js && npm ci && npm run build`. Needs a
+runtime with regex lookbehind and Unicode property escapes (Node 18+, current browsers). Differences
+from Python: `spellOutNumbers` only matches ASCII digits (use `normalize` first, as
+`prepareForSpeech` does), and `hausaCardinal` takes a JS number (safe integers only).
+
 ## Honest limits
 
 - Hausa spelling does not mark tone, so `tone` is a **heuristic**, not a tagger.
@@ -56,5 +74,11 @@ gyara speech < reply.txt            # ready for a TTS voice
 ## Develop
 
 ```bash
-pytest
+pytest                              # Python (includes doctests and the vector-drift check)
+python scripts/gen_vectors.py       # regenerate tests/vectors.json after changing Python behavior
+python scripts/gen_ts_lexicon.py    # regenerate js/src/lexicon.ts after changing the tone lexicon
+cd js && npm ci && npm test         # TypeScript; needs Node >= 22.12 for the test runner
 ```
+
+If you change behavior in one port, change the other, then regenerate the vectors: CI fails when
+`tests/vectors.json` is stale or the two ports disagree.
