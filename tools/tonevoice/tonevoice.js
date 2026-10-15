@@ -119,7 +119,9 @@
     return out;
   }
 
-  /* tones: array like ['L','L','H'], one per syllable. Returns Float32Array at v.sr, peak-normalised. */
+  /* tones: array like ['L','L','H'], one per syllable. Returns Float32Array at v.sr, peak-normalised to 0.7.
+     With opts.keepLevel the recording's own level is kept instead (and only scaled down if it would pass 0.95),
+     so words levelled at export stay equally loud. */
   function render(v, tones, opts) {
     opts = opts || {};
     var rangeSt = opts.rangeSt || RANGE_ST;
@@ -129,7 +131,7 @@
     var y = psola(v, f0);
     var peak = 0, i;
     for (i = 0; i < y.length; i++) { var a = Math.abs(y[i]); if (a > peak) peak = a; }
-    var g = peak > 0 ? 0.7 / peak : 1;
+    var g = opts.keepLevel ? (peak > 0.95 ? 0.95 / peak : 1) : (peak > 0 ? 0.7 / peak : 1);
     for (i = 0; i < y.length; i++) y[i] *= g;
     return y;
   }

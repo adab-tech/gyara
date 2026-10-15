@@ -29,13 +29,27 @@ python verify.py --words example-words.json    # or --all for every H/L/F patter
 python review/build.py example-words.json  # review/out/index.html
 ```
 
+With Murya's Piper voice instead of eSpeak (needs `onnx`, `onnxruntime`; the model is a download, not in the repo):
+
+```
+python build_neural_base.py words.json --model model.onnx --speaker F1 --out base-f1
+python export_voice.py --base base-f1 --out voice.json --center voice --level -16
+python verify.py --voice voice.json --all
+```
+
+`--center voice` puts every word of the voice on one pitch (the median of the recordings'), so words
+do not wander with whatever pitch the voice chose for each. `--level` gives every word the same
+loudness, and the page keeps it (`ToneVoice.render(base, tones, {keepLevel: true})`) instead of
+peak-normalising each clip. A VITS voice draws random noise, so rebuilding the recordings gives
+slightly different audio each time; the page embeds the recordings, not the model.
+
 `words.json` is a list of `{id, n, word, gloss, pos, marked, tones, sylls, newman, old, others}`;
 see `example-words.json`. `marked` is the tone-marked spelling (a macron makes the vowel long in the
 recording), `sylls` the syllables, `tones` one of H/L/F per syllable, `newman` a list of
 `{marked, tones, gloss}`. The 50-word data used for the first review is not in the repo.
 
-`verify.py` measures pitch from the rendered audio period by period and fails if any syllable is
-off its target. On the first 50 words: 86 renders, 205 syllables, worst deviation 0.1 semitone.
+`verify.py` reads the `voice.json` the page embeds, measures pitch from the rendered audio period
+by period and fails if any syllable is off its target. On the first 50 words: 86 renders, 205 syllables, worst deviation 0.1 semitone.
 Across every H/L/F pattern of the 49 recordings, 2,196 syllables, the only misses were three
 renders of a fall on the first syllable of `barka`, where the weak `r` gives the tracker too few
 pulses to measure.
@@ -45,14 +59,21 @@ pulses to measure.
 - The base voice is eSpeak NG with Swahili settings (`espeak.py`). It is a formant synthesizer, so
   it sounds robotic, and it only approximates ɓ ɗ ƙ ƴ, c, j and r. The tones are right; the voice
   is not good to listen to for long. Reviewers said as much.
-- Better base voice: Murya's own Piper model (`adab-tech/murya-piper-hausa-tts`, CC-BY-NC-SA).
-  `build_neural_base.py` is written for it and not yet run on the real model. It speaks each word as
-  plain text, takes rough syllable positions from the duration predictor (`piper_base.py` adds the
-  `Ceil` node's output to the ONNX graph), and places each vowel's voiced stretch from the audio
-  (`nuclei.py`). The finder was tested on eSpeak recordings with known timings: with hints 40 ms off,
-  97 to 100 percent of syllables land in the right place (88 to 98 percent cover at least half of the
-  true vowel); without hints 91 to 99 percent. The Piper wrapper is tested against a stand-in ONNX
-  graph only.
+- Better base voice: Murya's own Piper model (`adab-tech/murya-piper-hausa-tts`, CC-BY-NC-SA), run
+  as Murya's backend runs it, with no tone marks. A lone word makes its duration predictor erratic
+  (a 0.4 s closure before an initial k, a vowel of 11 ms), so `build_neural_base.py` first times the
+  word inside a carrier sentence (`ya ce <word> ne`), then speaks it alone with those durations,
+  slowed by `--rate` and with a floor on vowel length. `piper_base.py` does this by exposing the
+  `Ceil` node (frames per input id) and by swapping its input for one of its own, which is how the
+  durations are imposed. Because they are known, so is where each vowel is: a syllable's nucleus is
+  its vowel (and a sonorant coda) as timed, cut to the part within 20 dB of its peak
+  (`nuclei.audible`; the last vowel fades out over tens of milliseconds, and a fall spread over the
+  fade would land where nobody hears it) and to the voiced stretch. `nuclei.detect` finds vowels from
+  the audio alone and is the fallback when the spelling and the timing disagree.
+  Checked on four female speakers (F1 to F4) and five words: all 252 H/L/F renders, 612 syllables,
+  no failures, worst deviation 0.54 semitone; the audio the page really played, 44 syllables, within
+  0.1 semitone. The harmonicity of the renders stays within a few dB of the recordings (no added
+  buzz) and no clicks appear. The Piper wrapper's unit tests use a stand-in ONNX graph.
 - Pitch is set by rule: flat plateaus, no downdrift, no consonant effects on pitch.
 - Nothing here was checked by ear. Pitch is measured; naturalness is not.
 
@@ -63,12 +84,13 @@ pulses to measure.
 | `espeak.py` | ctypes binding to libespeak-ng, plus the flat Swahili voice |
 | `g2p.py` | Hausa spelling to Swahili-style spelling, vowel lengths from the marked form |
 | `build_base.py` | words to monotone eSpeak recordings, syllable spans, pitch marks |
-| `build_neural_base.py` | the same from a Piper voice, spans from its durations and the audio |
-| `piper_base.py` | runs a Piper ONNX voice as Murya's backend does and recovers per-character timing |
-| `nuclei.py` | finds each syllable's voiced vowel stretch in a recording |
+| `build_neural_base.py` | the same from a Piper voice: carrier-timed durations, nuclei from the timing |
+| `piper_base.py` | runs a Piper ONNX voice as Murya's backend does, recovers per-character timing, speaks with chosen durations |
+| `nuclei.py` | finds each syllable's voiced vowel stretch in a recording; cuts a span to its audible part |
 | `marks.py` | glottal pulse marks and their clean-up |
-| `export_voice.py` | recordings to the compact `voice.json` |
+| `export_voice.py` | recordings to the compact `voice.json`, optionally on one pitch and one loudness |
 | `tonevoice.py`, `tonevoice.js` | the TD-PSOLA tone engine (reference and browser) |
 | `node_render.js` | renders a list of patterns with the JS engine |
-| `verify.py` | measures rendered pitch against the intended pattern |
+| `verify.py` | measures rendered pitch (from `voice.json`) against the intended pattern |
+| `tests/` | pytest: Piper wrapper on a stand-in graph, nuclei, export |
 | `review/` | the review page template, its builder and a browser test |

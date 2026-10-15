@@ -20,6 +20,14 @@ HOP = 256
 _FIXES = {"’": "'", "‘": "'", "`": "'", "–": "-", "—": "-", "\xa0": " "}
 
 
+def _norm(text):
+    """NFD, casefolded, typographic quotes and dashes made plain: the text as the voice sees it."""
+    text = unicodedata.normalize("NFD", text).casefold()
+    for a, b in _FIXES.items():
+        text = text.replace(a, b)
+    return text
+
+
 class PiperVoice:
     def __init__(self, model_path, config_path=None, providers=("CPUExecutionProvider",)):
         cfg_path = config_path or str(model_path) + ".json"
@@ -33,6 +41,9 @@ class PiperVoice:
             length_scale=defaults.get("length_scale", 1.0),
             noise_w=defaults.get("noise_w", 0.8),
         )
+        self.model_path = str(model_path)
+        self.providers = list(providers)
+        self._timed = None
         model = onnx.load(str(model_path))
         self._ceil_outputs = [n.output[0] for n in model.graph.node if n.op_type == "Ceil"]
         extra = [onnx.helper.make_empty_tensor_value_info(name) for name in self._ceil_outputs]
@@ -43,9 +54,7 @@ class PiperVoice:
 
     def ids(self, text):
         """(ids, chars): the id sequence and, for each id, the character it stands for ('' for pad/bos/eos)."""
-        text = unicodedata.normalize("NFD", text).casefold()
-        for a, b in _FIXES.items():
-            text = text.replace(a, b)
+        text = _norm(text)
         pad, bos, eos = self.id_map.get("_", [0]), self.id_map.get("^", [1]), self.id_map.get("$", [2])
         ids, chars = list(bos) + list(pad), [""] * (len(bos) + len(pad))
         for ch in text:
@@ -80,6 +89,40 @@ class PiperVoice:
         frames = self._pick_durations(outs[1:], len(ids), len(audio))
         return audio, frames, chars
 
+    def _timed_session(self):
+        """A copy of the model that takes the duration of every input id as an extra input
+        (`w_override`, frames, float, shape [1, 1, ids]) in place of its own predictor."""
+        if self._timed is None:
+            model = onnx.load(self.model_path)
+            ceils = [n for n in model.graph.node if n.op_type == "Ceil"]
+            if len(ceils) != 1:
+                raise RuntimeError(f"expected one Ceil node, found {len(ceils)}")
+            ceils[0].input[0] = "w_override"
+            model.graph.input.append(onnx.helper.make_tensor_value_info("w_override", onnx.TensorProto.FLOAT, [1, 1, None]))
+            self._timed = ort.InferenceSession(model.SerializeToString(), providers=self.providers)
+        return self._timed
+
+    def synth_timed(self, text, frames, speaker=None, noise_scale=None, noise_w=None):
+        """Speak `text` with exactly `frames[i]` frames for input id i. Returns (audio, chars)."""
+        ids, chars = self.ids(text)
+        if len(frames) != len(ids):
+            raise ValueError(f"{len(frames)} durations for {len(ids)} ids")
+        p = dict(self.defaults)
+        if noise_scale is not None:
+            p["noise_scale"] = noise_scale
+        if noise_w is not None:
+            p["noise_w"] = noise_w
+        sid = self.speakers.get(speaker, speaker if isinstance(speaker, int) else 0)
+        feeds = {
+            "input": np.array([ids], dtype=np.int64),
+            "input_lengths": np.array([len(ids)], dtype=np.int64),
+            "scales": np.array([p["noise_scale"], 1.0, p["noise_w"]], dtype=np.float32),
+            "sid": np.array([sid], dtype=np.int64),
+            "w_override": np.asarray(frames, dtype=np.float32).reshape(1, 1, -1),
+        }
+        out = self._timed_session().run(None, feeds)
+        return np.asarray(out[0]).squeeze().astype(np.float32), chars
+
     def _pick_durations(self, extra, n_ids, n_samples):
         """The Ceil output that is one non-negative count per input id and adds up to the audio length."""
         if self._ceil_index is not None:
@@ -93,6 +136,73 @@ class PiperVoice:
 
 
 def char_spans(frames, chars, sr, hop=HOP):
-    """Seconds spanned by each character: [(char, start, end), ...] (pad ids are folded into no character)."""
+    """Seconds spanned by each character: [(char, start, end), ...].
+
+    The pad id after a character carries part of that character's sound (transitions), so it is
+    counted with the character: a span runs from the character's own frames to the next character."""
     edges = np.concatenate([[0], np.cumsum(frames)]) * hop / sr
-    return [(c, float(edges[i]), float(edges[i + 1])) for i, c in enumerate(chars) if c]
+    idx = [i for i, c in enumerate(chars) if c]
+    out = []
+    for k, i in enumerate(idx):
+        end = edges[idx[k + 1]] if k + 1 < len(idx) else edges[i + 2] if i + 2 < len(edges) else edges[i + 1]
+        out.append((chars[i], float(edges[i]), float(end)))
+    return out
+
+
+def plan_frames(voice, word, speaker, carrier="ya ce {} ne", rate=1.0, lead=2, tail=3,
+                noise_scale=0.2, min_char=2, min_vowel=7, min_final=11):
+    """Per-id frame counts (whole frames, as the predictor itself gives) for the isolated `word`, taken
+    from how the voice times it inside `carrier`.
+
+    The predictor's own timing for a lone word is erratic (a 0.4 s closure before an initial k, a
+    vowel of 11 ms); inside a sentence it is natural. Each character keeps its in-sentence frames
+    (and the pad after it), scaled by `rate`, with a short lead-in and tail around the word. In a
+    sentence the vowels are clipped short, too short to carry a tone, so a vowel gets at least
+    `min_vowel` frames and a vowel that ends the word `min_final` (spoken alone it is held longer).
+    Returns (text, frames)."""
+    prefix = carrier.split("{}")[0]
+    text = carrier.format(word)
+    _, chars = voice.ids(text)
+    audio, frames, _ = voice.synth(text, speaker=speaker, noise_scale=noise_scale, noise_w=0.0, length_scale=1.0)
+    if frames is None:
+        raise RuntimeError("the voice did not return durations")
+    first = len([c for c in voice.ids(prefix)[1] if c])
+    n = len([c for c in voice.ids(word)[1] if c])
+    out = [lead, 1]                                   # bos, its pad
+    for j in range(n):
+        i = 2 + 2 * (first + j)                       # id index of this character in the carrier text
+        vowel = chars[i] in VOWEL_CHARS
+        floor = (min_final if j == n - 1 else min_vowel) if vowel else min_char
+        c = max(floor, int(round(frames[i] * rate)))
+        p = max(1, int(round(frames[i + 1] * rate)))
+        out += [c, p]
+    out.append(tail)                                  # eos
+    return word, [int(x) for x in out]
+
+
+VOWEL_CHARS = set("aeiou")
+SONORANT_CODAS = set("mnlrwy")
+
+
+def syllable_nuclei(sylls, spans, id_map):
+    """The tone-bearing stretch of each syllable, in seconds, from the character spans.
+
+    A syllable's nucleus runs from the start of its first vowel to the end of its last vowel, and on
+    over an immediately following sonorant coda (m n l r w y), the same rule build_base.py applies to
+    eSpeak's events. Returns None when the spans do not line up with the syllables."""
+    per_syll = [[c for c in _norm(s) if c in id_map] for s in sylls]
+    if sum(len(c) for c in per_syll) != len(spans):
+        return None
+    out, k = [], 0
+    for chars in per_syll:
+        mine = spans[k:k + len(chars)]
+        k += len(chars)
+        v = [i for i, (c, _, _) in enumerate(mine) if c in VOWEL_CHARS]
+        if not v:
+            return None
+        a, b = mine[v[0]][1], mine[v[-1]][2]
+        j = v[-1] + 1
+        if j < len(mine) and mine[j][0] in SONORANT_CODAS:
+            b = mine[j][2]
+        out.append([a, b])
+    return out

@@ -3,3 +3,7 @@ scipy
 soundfile
 praat-parselmouth
 espeakng-loader
+# Piper voice path (piper_base.py, build_neural_base.py) and the tests
+onnx
+onnxruntime
+pytest

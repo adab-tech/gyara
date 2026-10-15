@@ -2,7 +2,8 @@
 
 For every base in voice.json, renders the patterns you ask for (the ones in words.json, or every
 H/L/F pattern with --all) through node_render.js, then measures the pitch of each syllable from the
-output audio, period by period, and compares it with the intended contour.
+output audio, period by period, and compares it with the intended contour around the base's
+centre pitch (the voice.json f0). Reads the same voice.json the page ships, nothing else.
 """
 import argparse
 import itertools
@@ -38,25 +39,23 @@ def jobs_from_words(words, base_keys):
     return jobs
 
 
-def jobs_all(base_dir):
+def jobs_all(voice):
     jobs = []
-    for f in sorted(os.listdir(base_dir)):
-        if f.endswith(".json"):
-            b = json.load(open(os.path.join(base_dir, f), encoding="utf-8"))
-            jobs += [dict(key=b["key"], tones=list(c)) for c in itertools.product("HLF", repeat=len(b["nuclei"]))]
+    for key, b in sorted(voice.items()):
+        jobs += [dict(key=key, tones=list(c)) for c in itertools.product("HLF", repeat=len(b["nuclei"]))]
     return jobs
 
 
-def check(jobs, base_dir, outdir):
+def check(jobs, voice, outdir):
     bad, n_syll, worst = [], 0, 0.0
     for j in jobs:
-        b = json.load(open(os.path.join(base_dir, f"{j['key']}.json"), encoding="utf-8"))
+        b = voice[j["key"]]
         y, sr = sf.read(os.path.join(outdir, f"{j['key']}_{''.join(j['tones'])}.wav"))
         if not np.all(np.isfinite(y)) or np.abs(y).max() > 0.7005:
             bad.append((j["key"], "".join(j["tones"]), "bad samples"))
             continue
         snd = parselmouth.Sound(y, sampling_frequency=sr)
-        pitch = call(snd, "To Pitch (cc)", 0.0025, 70, 15, "no", 0.03, 0.45, 0.01, 0.35, 0.14, 300)
+        pitch = call(snd, "To Pitch (cc)", 0.0025, 0.66 * b["f0"], 15, "no", 0.03, 0.45, 0.01, 0.35, 0.14, 2.8 * b["f0"])
         pp = call([snd, pitch], "To PointProcess (cc)")
         n = call(pp, "Get number of points")
         tt = np.array([call(pp, "Get time from index", i + 1) for i in range(n)])
@@ -88,23 +87,22 @@ def check(jobs, base_dir, outdir):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--base", default=os.path.join(HERE, "base"))
     ap.add_argument("--voice", default=os.path.join(HERE, "voice.json"))
     ap.add_argument("--words", help="words.json; check the patterns it lists")
     ap.add_argument("--all", action="store_true", help="check every H/L/F pattern of every base")
     a = ap.parse_args()
-    keys = {f[:-5] for f in os.listdir(a.base) if f.endswith(".json")}
+    voice = json.load(open(a.voice, encoding="utf-8"))
     if a.all:
-        jobs = jobs_all(a.base)
+        jobs = jobs_all(voice)
     elif a.words:
-        jobs = jobs_from_words(json.load(open(a.words, encoding="utf-8")), keys)
+        jobs = jobs_from_words(json.load(open(a.words, encoding="utf-8")), set(voice))
     else:
         ap.error("give --words or --all")
     with tempfile.TemporaryDirectory() as tmp:
         jp = os.path.join(tmp, "jobs.json")
         json.dump(jobs, open(jp, "w"))
         subprocess.run(["node", os.path.join(HERE, "node_render.js"), jp, a.voice, os.path.join(tmp, "out")], check=True)
-        n_syll, bad, worst = check(jobs, a.base, os.path.join(tmp, "out"))
+        n_syll, bad, worst = check(jobs, voice, os.path.join(tmp, "out"))
     print(f"{len(jobs)} renders, {n_syll} syllables checked; {len(bad)} failures; worst deviation among passing syllables {worst:.2f} st")
     for r in bad[:40]:
         print("  FAIL", *r)

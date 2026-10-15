@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from onnx import TensorProto as T  # noqa: E402
 from onnx import helper as h  # noqa: E402
 
-from piper_base import HOP, PiperVoice, char_spans  # noqa: E402
+from piper_base import HOP, PiperVoice, char_spans, plan_frames, syllable_nuclei  # noqa: E402
 
 SYMBOLS = "_^$ !',-.:;?abcdefghijklmnorstuwyzɓɗƙƴpqvx"
 CONFIG = {
@@ -102,3 +102,43 @@ def test_length_scale_slows_every_character(voice):
     _, f1, _ = voice.synth("kare", length_scale=1.0)
     _, f2, _ = voice.synth("kare", length_scale=2.0)
     assert f2.sum() > 1.8 * f1.sum()
+
+
+def test_synth_timed_speaks_exactly_the_durations_it_is_given(voice):
+    ids, chars = voice.ids("ruwa")
+    frames = [3, 1] + [6, 2] * 4 + [3]
+    assert len(frames) == len(ids)
+    audio, chars2 = voice.synth_timed("ruwa", frames, speaker="M1")
+    assert chars2 == chars
+    assert len(audio) == sum(frames) * HOP
+    spans = char_spans(np.array(frames), chars, voice.sr)
+    assert spans[0][1] == pytest.approx((3 + 1) * HOP / voice.sr)   # r starts after bos and its pad
+
+
+def test_synth_timed_rejects_the_wrong_number_of_durations(voice):
+    with pytest.raises(ValueError):
+        voice.synth_timed("ruwa", [1, 2, 3])
+
+
+def test_plan_frames_are_whole_frames_and_vowels_get_room_for_a_tone(voice):
+    word, frames = plan_frames(voice, "ruwa", "M1", rate=1.8)
+    ids, chars = voice.ids("ruwa")
+    assert word == "ruwa" and len(frames) == len(ids)
+    assert all(isinstance(f, int) and f >= 1 for f in frames)
+    vowels = [i for i, c in enumerate(chars) if c in set("aeiou")]
+    assert all(frames[i] >= 7 for i in vowels)
+    assert frames[vowels[-1]] >= 11           # the vowel that ends the word is held longer
+
+
+def test_syllable_nuclei_are_the_vowel_and_a_sonorant_coda(voice):
+    # san-nu: the first nucleus is the a and the n that closes the syllable, the second is the u alone
+    spans = [("s", 0.00, 0.10), ("a", 0.10, 0.20), ("n", 0.20, 0.30), ("n", 0.30, 0.38), ("u", 0.38, 0.50)]
+    assert syllable_nuclei(["san", "nu"], spans, voice.id_map) == [[0.10, 0.30], [0.38, 0.50]]
+    # an obstruent coda is not part of it, and an onset never is
+    spans = [("b", 0.0, 0.1), ("a", 0.1, 0.2), ("k", 0.2, 0.3), ("y", 0.3, 0.4), ("a", 0.4, 0.5)]
+    assert syllable_nuclei(["bak", "ya"], spans, voice.id_map) == [[0.1, 0.2], [0.4, 0.5]]
+
+
+def test_syllable_nuclei_give_up_when_spelling_and_spans_disagree(voice):
+    spans = [("k", 0.0, 0.1), ("a", 0.1, 0.2)]
+    assert syllable_nuclei(["ka", "re"], spans, voice.id_map) is None

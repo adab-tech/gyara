@@ -73,6 +73,33 @@ def detect(x, sr, n, hints=None, tol=0.08):
     return [[float(t[a] - STEP / 2), float(t[b] + STEP / 2)] for a, b in spans]
 
 
+def audible(nuclei, x, sr, drop_db=20.0, win=0.012, hop=0.002):
+    """Cut each [start, end] down to the stretch around its loudest point that stays within drop_db of it.
+
+    The last vowel of a word fades out over tens of milliseconds; a tone contour spread over the
+    fade completes where nobody hears it (a fall on the last syllable would sound level)."""
+    x = np.asarray(x, dtype=np.float64)
+    w = np.hanning(max(3, int(win * sr)))
+    env = np.sqrt(np.convolve(x * x, w / w.sum(), mode="same"))
+    step = max(1, int(hop * sr))
+    db = 20 * np.log10(env[::step] + 1e-9)
+    out = []
+    for a, b in nuclei:
+        lo, hi = max(0, int(np.ceil(a * sr / step))), min(len(db) - 1, int(b * sr / step))
+        if hi - lo < 2:
+            out.append([a, b])
+            continue
+        p = lo + int(np.argmax(db[lo:hi + 1]))
+        i = p
+        while i - 1 >= lo and db[i - 1] >= db[p] - drop_db:
+            i -= 1
+        j = p
+        while j + 1 <= hi and db[j + 1] >= db[p] - drop_db:
+            j += 1
+        out.append([max(a, i * step / sr), min(b, (j + 1) * step / sr)])
+    return out
+
+
 def _extents(s, voiced, pk):
     """Frame range of each nucleus: down DROP_DB from the peak, no further than the valley to the
     neighbouring peak, and inside the voiced run."""
