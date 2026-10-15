@@ -27,7 +27,7 @@ def test_normalized_text_audits_clean(text):
 @given(HAUSA_ISH)
 def test_speech_prep_never_emits_unspeakable_symbols(text):
     out = prepare_for_speech(text)
-    assert not any(c in out for c in "$@%*#_^~|<>[]{}()\"")
+    assert not any(c in out for c in '$@%*#_^~|<>[]{}()"')
     assert out == out.strip() and "  " not in out
 
 
