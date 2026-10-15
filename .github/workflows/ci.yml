@@ -28,9 +28,11 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e '.[dev]'
-      - run: ruff check src tests
-      - run: ruff format --check src tests
+      - run: ruff check src tests scripts
+      - run: ruff format --check src tests scripts
       - run: mypy
+      - run: python scripts/gen_ts_lexicon.py --check
+      - run: python scripts/gen_vectors.py --check
 
   build:
     runs-on: ubuntu-latest
@@ -42,3 +44,51 @@ jobs:
       - run: pip install build twine
       - run: python -m build
       - run: twine check dist/*
+
+  js:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["22", "24"]
+    defaults:
+      run:
+        working-directory: js
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: node test/smoke.mjs
+      - run: npm audit --audit-level=moderate
+      - if: matrix.node-version == '22'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gyara-js-dist
+          path: js/dist
+
+  # The test runner needs Node >= 22.12, but the package claims Node >= 18: run the BUILT
+  # output against the golden vectors on the older versions.
+  js-compat:
+    needs: js
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: gyara-js-dist
+          path: js/dist
+      - run: node js/test/smoke.mjs
