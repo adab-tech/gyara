@@ -8,6 +8,7 @@ from .orthography import (
     _FOREIGN_DIGIT_RE,
     count_ascii_hook_candidates,
     count_hooked,
+    count_quoted_lookalikes,
 )
 
 _WORD_RE = re.compile(r"[\wƁƊƘƳɓɗƙƴ]+(?:['’ʼ][\wƁƊƘƳɓɗƙƴ]+)*")
@@ -25,6 +26,7 @@ class AuditReport:
     foreign_digits: int
     ascii_digit_runs: int
     issues: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -45,6 +47,13 @@ def audit_text(text: str) -> AuditReport:
         issues.append(f"{ascii_hooks} ASCII-apostrophe hooked-letter spelling(s) (b' d' k' y' 'y)")
     if foreign:
         issues.append(f"{foreign} Arabic-Indic/Persian digit glyph(s); Hausa uses 0-9")
+    warnings = []
+    quoted = count_quoted_lookalikes(text)
+    if quoted:
+        warnings.append(
+            f"{quoted} quote-wrapped word(s) like 'yaro' left as-is; "
+            "check by hand whether an opening 'y was meant to be ƴ"
+        )
     return AuditReport(
         words=len(words(text)),
         hooked_letters=count_hooked(text),
@@ -52,6 +61,7 @@ def audit_text(text: str) -> AuditReport:
         foreign_digits=foreign,
         ascii_digit_runs=len(re.findall(r"\d+", text)),
         issues=issues,
+        warnings=warnings,
     )
 
 

@@ -41,3 +41,16 @@ def test_cli_audit_json_ok(tmp_path, capsys):
 def test_cli_syllables(capsys):
     assert main(["syllables", "k'asa"]) == 0
     assert "ƙa-sa" in capsys.readouterr().out
+
+
+def test_audit_warns_on_quoted_lookalikes_without_failing():
+    r = audit_text("Ya ce 'yaro' ne")
+    assert r.ok and r.warnings and "'yaro'" in r.warnings[0]
+    assert r.to_dict()["warnings"] == r.warnings
+
+
+def test_cli_audit_prints_warning(tmp_path, capsys):
+    f = tmp_path / "q.txt"
+    f.write_text("'yaro'\n", encoding="utf-8")
+    assert main(["audit", str(f)]) == 0
+    assert "warning:" in capsys.readouterr().out

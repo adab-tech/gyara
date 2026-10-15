@@ -21,10 +21,22 @@ _FOREIGN_DIGITS = {
 }
 _FOREIGN_DIGIT_RE = re.compile("[" + "".join(_FOREIGN_DIGITS) + "]")
 
-# b' d' k' y'  (letter then apostrophe)   |   'y  (apostrophe then y)
-_HOOK_RE = re.compile(rf"([bdkyBDKY])[{_APOS}]|[{_APOS}]([yY])")
+_LETTER = r"[^\W\d_]"  # any Unicode letter, including the hooked ones
+
+# A hook is only restored when a letter follows the apostrophe: Hausa words do
+# not end in ɓ ɗ ƙ ƴ, so "k'" at the end of a word is a closing quote.
+#   b' d' k' y'  followed by a letter      ->  ɓ ɗ ƙ ƴ   (also mid-word: gab'a)
+#   'y at the START of a word              ->  ƴ         ('yanci)
+# 'y inside a word is a glottal stop plus y (ya'ya, "children") and is left alone,
+# as is a quote-wrapped word like 'yaro' (see QUOTED_RE; `audit` warns about those).
+_HOOK_RE = re.compile(
+    rf"([bdkyBDKY])[{_APOS}](?={_LETTER})"
+    rf"|(?<!{_LETTER})[{_APOS}]([yY])(?={_LETTER})(?!{_LETTER}*[{_APOS}](?!{_LETTER}))"
+)
 # ts' -> ts: the ejective is written plain "ts" in standard orthography.
-_TS_RE = re.compile(rf"([tT][sS])[{_APOS}]")
+_TS_RE = re.compile(rf"([tT][sS])[{_APOS}](?={_LETTER})")
+# A word wrapped in single quotes that starts like a hooked word: 'yaro'
+QUOTED_RE = re.compile(rf"(?<!{_LETTER})[{_APOS}][yY]{_LETTER}*[{_APOS}](?!{_LETTER})")
 
 
 def normalize_digits(text: str) -> str:
@@ -58,6 +70,11 @@ def normalize(text: str, *, digits: bool = True) -> str:
 def count_hooked(text: str) -> int:
     """Number of proper hooked letters (ɓ ɗ ƙ ƴ, any case) in `text`."""
     return sum(text.count(c) for c in HOOKED_LETTERS)
+
+
+def count_quoted_lookalikes(text: str) -> int:
+    """Number of quote-wrapped words like 'yaro' that `normalize` deliberately leaves alone."""
+    return len(QUOTED_RE.findall(text))
 
 
 def count_ascii_hook_candidates(text: str) -> int:
