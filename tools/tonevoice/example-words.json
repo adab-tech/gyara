@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ex-1",
+    "n": 1,
+    "word": "mutum",
+    "gloss": "person (example entry, not reviewed data)",
+    "pos": "noun",
+    "marked": "mùtûm",
+    "tones": [
+      "L",
+      "F"
+    ],
+    "sylls": [
+      "mu",
+      "tum"
+    ],
+    "newman": [
+      {
+        "marked": "mùtum",
+        "tones": [
+          "L",
+          "H"
+        ],
+        "gloss": "example row, not real data"
+      }
+    ],
+    "old": [
+      "L",
+      "H"
+    ],
+    "others": []
+  },
+  {
+    "id": "ex-2",
+    "n": 2,
+    "word": "uku",
+    "gloss": "three (example entry, not reviewed data)",
+    "pos": "num",
+    "marked": "ukù",
+    "tones": [
+      "H",
+      "L"
+    ],
+    "sylls": [
+      "u",
+      "ku"
+    ],
+    "newman": [],
+    "old": null,
+    "others": []
+  },
+  {
+    "id": "ex-3",
+    "n": 3,
+    "word": "sannu",
+    "gloss": "hello (example entry, not reviewed data)",
+    "pos": "intj",
+    "marked": "sànnu",
+    "tones": [
+      "L",
+      "H"
+    ],
+    "sylls": [
+      "san",
+      "nu"
+    ],
+    "newman": [],
+    "old": [
+      "H",
+      "L"
+    ],
+    "others": []
+  }
+]
