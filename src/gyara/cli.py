@@ -9,6 +9,7 @@ from . import __version__
 from .audit import audit_text, dataset_stats
 from .numbers import spell_out_numbers
 from .orthography import normalize
+from .speech import prepare_for_speech
 from .syllables import syllabify
 from .tone import annotate_tones
 
@@ -31,6 +32,11 @@ def _cmd_fix(a: argparse.Namespace) -> int:
 
 def _cmd_spell(a: argparse.Namespace) -> int:
     sys.stdout.write(spell_out_numbers(normalize(_read(a.file))))
+    return 0
+
+
+def _cmd_speech(a: argparse.Namespace) -> int:
+    sys.stdout.write(prepare_for_speech(_read(a.file), strip_glosses=not a.keep_glosses))
     return 0
 
 
@@ -91,6 +97,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--keep-digits", action="store_true", help="do not fold Arabic-Indic digits to 0-9"
     )
     add("spell", _cmd_spell, "spell digits as Hausa words (for speech)")
+    add("speech", _cmd_speech, "prepare text for a TTS voice").add_argument(
+        "--keep-glosses", action="store_true", help="keep (English) glosses in the spoken text"
+    )
     s = add("syllables", _cmd_syllables, "syllabify words with weights", file_arg=False)
     s.add_argument("words", nargs="+")
     add("tone", _cmd_tone, "heuristic tone marks").add_argument(

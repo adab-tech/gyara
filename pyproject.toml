@@ -24,7 +24,8 @@ gyara = "gyara.cli:main"
 packages = ["src/gyara"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "src"]
+addopts = "--doctest-modules"
 
 [tool.ruff]
 line-length = 100
