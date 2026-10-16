@@ -60,20 +60,30 @@ pulses to measure.
   it sounds robotic, and it only approximates ɓ ɗ ƙ ƴ, c, j and r. The tones are right; the voice
   is not good to listen to for long. Reviewers said as much.
 - Better base voice: Murya's own Piper model (`adab-tech/murya-piper-hausa-tts`, CC-BY-NC-SA), run
-  as Murya's backend runs it, with no tone marks. A lone word makes its duration predictor erratic
-  (a 0.4 s closure before an initial k, a vowel of 11 ms), so `build_neural_base.py` first times the
-  word inside a carrier sentence (`ya ce <word> ne`), then speaks it alone with those durations,
-  slowed by `--rate` and with a floor on vowel length. `piper_base.py` does this by exposing the
-  `Ceil` node (frames per input id) and by swapping its input for one of its own, which is how the
-  durations are imposed. Because they are known, so is where each vowel is: a syllable's nucleus is
-  its vowel (and a sonorant coda) as timed, cut to the part within 20 dB of its peak
-  (`nuclei.audible`; the last vowel fades out over tens of milliseconds, and a fall spread over the
-  fade would land where nobody hears it) and to the voiced stretch. `nuclei.detect` finds vowels from
-  the audio alone and is the fallback when the spelling and the timing disagree.
-  Checked on four female speakers (F1 to F4) and five words: all 252 H/L/F renders, 612 syllables,
-  no failures, worst deviation 0.54 semitone; the audio the page really played, 44 syllables, within
-  0.1 semitone. The harmonicity of the renders stays within a few dB of the recordings (no added
-  buzz) and no clicks appear. The Piper wrapper's unit tests use a stand-in ONNX graph.
+  as Murya's backend runs it, with no tone marks, at its settings (noise 0.667, pace 1.25). A lone
+  word makes its duration predictor erratic (a 0.4 s closure before an initial k, a vowel of 11 ms),
+  so `build_neural_base.py` first times the word inside a carrier sentence (`ya ce <word> ne`), then
+  speaks it alone with those durations, slowed by `--rate`, with a floor on vowel length and longer
+  vowels where the marked spelling has a macron. `piper_base.py` does this by exposing the `Ceil`
+  node (frames per input id) and by swapping its input for one of its own, which is how the durations
+  are imposed. Because they are known, so is where each vowel is: a syllable's nucleus is its vowel
+  (and a sonorant coda) as timed, cut to the part within 20 dB of its peak (`nuclei.audible`; the
+  last vowel fades out over tens of milliseconds, and a fall spread over the fade would land where
+  nobody hears it) and to the voiced stretch. `nuclei.detect` finds vowels from the audio alone and
+  is the fallback when the spelling and the timing disagree. The voice's own pitch drifts down across
+  a word, and the further the engine has to move it the rougher the result, so `--candidates` takes
+  are drawn (the noise makes each one different) and the one whose own pitch strays least inside the
+  vowels, with the clearest voice and the most regular pulses, is kept.
+  Checked on four female speakers (F1 to F4) and the 49 recordings of the first review: every H/L/F
+  pattern of every word, 801 renders and 2,196 syllables per voice, no failures in three voices and one
+  in the fourth (a syllable whose quiet fade the tracker mis-measured; the pulses are on target to
+  the last audible period), worst deviation 1.1 semitones. The harmonicity of the renders stays
+  within a few dB of the recordings and no clicks appear. The Piper wrapper's unit tests use a
+  stand-in ONNX graph.
+- Pitch marks: `repair_marks` fills dropped pulses by comparing each gap with the local period. It
+  once used one period for the whole word, which is fine for a monotone voice and wrong for one
+  whose pitch falls by half an octave inside a word: every long period in the low stretch got a
+  bogus extra mark (up to half of the periods in some words), a double pulse heard as buzz.
 - Pitch is set by rule: flat plateaus, no downdrift, no consonant effects on pitch.
 - Nothing here was checked by ear. Pitch is measured; naturalness is not.
 

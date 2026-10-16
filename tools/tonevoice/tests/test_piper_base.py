@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from onnx import TensorProto as T  # noqa: E402
 from onnx import helper as h  # noqa: E402
 
-from piper_base import HOP, PiperVoice, char_spans, plan_frames, syllable_nuclei  # noqa: E402
+from piper_base import HOP, PiperVoice, char_spans, long_vowel_positions, plan_frames, syllable_nuclei  # noqa: E402
 
 SYMBOLS = "_^$ !',-.:;?abcdefghijklmnorstuwyzɓɗƙƴpqvx"
 CONFIG = {
@@ -142,3 +142,21 @@ def test_syllable_nuclei_are_the_vowel_and_a_sonorant_coda(voice):
 def test_syllable_nuclei_give_up_when_spelling_and_spans_disagree(voice):
     spans = [("k", 0.0, 0.1), ("a", 0.1, 0.2)]
     assert syllable_nuclei(["ka", "re"], spans, voice.id_map) is None
+
+
+def test_long_vowels_are_held_longer(voice):
+    # ru-wa with the final a long, and with the first u long
+    pos = long_vowel_positions(["ru", "wa"], [False, True], voice.id_map)
+    assert pos == {3}                                  # r u w a: the a
+    _, frames = plan_frames(voice, "ruwa", "M1", rate=1.8, long_at=pos)
+    ids, chars = voice.ids("ruwa")
+    vowels = [i for i, c in enumerate(chars) if c in set("aeiou")]
+    assert frames[vowels[-1]] >= 17
+    pos = long_vowel_positions(["ru", "wa"], [True, False], voice.id_map)
+    _, frames = plan_frames(voice, "ruwa", "M1", rate=1.8, long_at=pos)
+    assert frames[vowels[0]] >= 13 and frames[vowels[-1]] < 17
+
+
+def test_a_diphthong_is_not_lengthened_by_a_macron(voice):
+    assert long_vowel_positions(["kai", "ya"], [True, False], voice.id_map) == set()
+    assert long_vowel_positions(["ɗa", "ƙi"], [True, True], voice.id_map) == {1, 3}

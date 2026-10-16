@@ -15,17 +15,25 @@ def pitch_marks(x, sr, f_lo=70, f_hi=220):
 
 def repair_marks(x, marks_s, sr):
     """Fill the occasional dropped pulse (taps, flutter) so every voiced run has regular marks.
+
+    A dropped pulse leaves a gap about twice the *local* period, so the gap is judged against the
+    intervals just before and after it, not against one period for the whole word: a voice whose
+    pitch falls by half an octave inside a word would otherwise get a bogus extra mark in every
+    period of its low stretch (a double pulse, heard as buzz).
     Returns (marks in samples, typical period in samples, run-break gap in samples)."""
     m = np.round(np.asarray(marks_s) * sr)
     d = np.diff(m)
-    P0 = float(np.median(d[d < 0.013 * sr]))
+    valid = d < 0.013 * sr
+    P0 = float(np.median(d[valid]))
     brk = 2.6 * P0
     out = [m[0]]
     filled = 0
-    for a, b in zip(m[:-1], m[1:]):
+    for i, (a, b) in enumerate(zip(m[:-1], m[1:])):
         g = b - a
-        if 1.4 * P0 < g <= brk:
-            k = max(2, int(round(g / P0)))
+        near = [d[j] for j in range(max(0, i - 4), min(len(d), i + 5)) if j != i and valid[j] and d[j] < 1.5 * (d[j - 1] if j > 0 and valid[j - 1] else d[j])]
+        loc = float(np.median(near)) if len(near) >= 2 else P0
+        if 1.6 * loc < g <= 2.6 * loc:
+            k = max(2, int(round(g / loc)))
             for j in range(1, k):
                 pos = a + j * g / k
                 lo, hi = int(pos - 0.0015 * sr), int(pos + 0.0015 * sr) + 1

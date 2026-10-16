@@ -150,7 +150,7 @@ def char_spans(frames, chars, sr, hop=HOP):
 
 
 def plan_frames(voice, word, speaker, carrier="ya ce {} ne", rate=1.0, lead=2, tail=3,
-                noise_scale=0.2, min_char=2, min_vowel=7, min_final=11):
+                noise_scale=0.2, min_char=2, min_vowel=7, min_final=11, long_at=(), min_long=13, min_long_final=17):
     """Per-id frame counts (whole frames, as the predictor itself gives) for the isolated `word`, taken
     from how the voice times it inside `carrier`.
 
@@ -159,6 +159,8 @@ def plan_frames(voice, word, speaker, carrier="ya ce {} ne", rate=1.0, lead=2, t
     (and the pad after it), scaled by `rate`, with a short lead-in and tail around the word. In a
     sentence the vowels are clipped short, too short to carry a tone, so a vowel gets at least
     `min_vowel` frames and a vowel that ends the word `min_final` (spoken alone it is held longer).
+    The voice reads plain text, so it has no way to be told a vowel is long: `long_at` (character
+    positions in the word, see `long_vowel_positions`) gets `min_long`, or `min_long_final` at the end.
     Returns (text, frames)."""
     prefix = carrier.split("{}")[0]
     text = carrier.format(word)
@@ -172,7 +174,10 @@ def plan_frames(voice, word, speaker, carrier="ya ce {} ne", rate=1.0, lead=2, t
     for j in range(n):
         i = 2 + 2 * (first + j)                       # id index of this character in the carrier text
         vowel = chars[i] in VOWEL_CHARS
-        floor = (min_final if j == n - 1 else min_vowel) if vowel else min_char
+        last = j == n - 1
+        floor = (min_final if last else min_vowel) if vowel else min_char
+        if vowel and j in long_at:
+            floor = min_long_final if last else min_long
         c = max(floor, int(round(frames[i] * rate)))
         p = max(1, int(round(frames[i + 1] * rate)))
         out += [c, p]
@@ -182,6 +187,20 @@ def plan_frames(voice, word, speaker, carrier="ya ce {} ne", rate=1.0, lead=2, t
 
 VOWEL_CHARS = set("aeiou")
 SONORANT_CODAS = set("mnlrwy")
+
+
+def long_vowel_positions(sylls, longs, id_map):
+    """Positions (among the word's characters as the voice reads them) of the vowel of every syllable
+    marked long. `longs` has one boolean per syllable. A syllable with two vowel letters (ai, au) is
+    left alone: a macron marks one vowel, and those are not short anyway."""
+    pos, k = set(), 0
+    for syl, long in zip(sylls, longs):
+        chars = [c for c in _norm(syl) if c in id_map]
+        vowels = [k + i for i, c in enumerate(chars) if c in VOWEL_CHARS]
+        if long and len(vowels) == 1:
+            pos.add(vowels[0])
+        k += len(chars)
+    return pos
 
 
 def syllable_nuclei(sylls, spans, id_map):
